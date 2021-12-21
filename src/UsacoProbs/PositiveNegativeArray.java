@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.Scanner;
 import java.util.Stack;
 
-public class PostiveNegativeArray {
+public class PositiveNegativeArray {
 
     public static void main(String[] args) throws IOException {
         Scanner r = new Scanner(System.in);
