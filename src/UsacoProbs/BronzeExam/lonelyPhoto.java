@@ -1,4 +1,4 @@
-package UsacoProbs;
+package UsacoProbs.BronzeExam;
 
 import java.io.IOException;
 import java.util.Scanner;
