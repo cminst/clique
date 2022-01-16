@@ -18,12 +18,7 @@ public class BlockedBillboard {
             int higherY = r.nextInt();
             for (int j = lowerX; j < higherX; j++) {
                 for (int k = lowerY; k < higherY; k++) {
-                    if (lowerX == abs(lowerX) || lowerY == abs(lowerY) || higherX == abs(higherX) || higherY == abs(higherY)) {
                         billboards[j + 1000][k + 1000] = 1;
-                    }
-                    else{
-                        billboards[j][k] = 1;
-                    }
                 }
             }
         }
@@ -34,12 +29,7 @@ public class BlockedBillboard {
         int higherY = r.nextInt();
         for (int j = lowerX; j < higherX; j++) {
             for (int k = lowerY; k < higherY; k++) {
-                if (lowerX == abs(lowerX) || lowerY == abs(lowerY) || higherX == abs(higherX) || higherY == abs(higherY)) {
                     billboards[j + 1000][k + 1000] = 2;
-                }
-                else{
-                    billboards[j][k] = 2;
-                }
             }
         }
 
