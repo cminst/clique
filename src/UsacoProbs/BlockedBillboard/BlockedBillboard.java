@@ -3,8 +3,6 @@ package UsacoProbs.BlockedBillboard;
 import java.io.*;
 import java.util.Scanner;
 
-import static java.lang.Math.abs;
-
 public class BlockedBillboard {
 
     public static void main(String[] args) throws IOException {
@@ -18,7 +16,7 @@ public class BlockedBillboard {
             int higherY = r.nextInt();
             for (int j = lowerX; j < higherX; j++) {
                 for (int k = lowerY; k < higherY; k++) {
-                        billboards[j + 1000][k + 1000] = 1;
+                    billboards[j + 1000][k + 1000] = 1;
                 }
             }
         }
@@ -29,7 +27,7 @@ public class BlockedBillboard {
         int higherY = r.nextInt();
         for (int j = lowerX; j < higherX; j++) {
             for (int k = lowerY; k < higherY; k++) {
-                    billboards[j + 1000][k + 1000] = 2;
+                billboards[j + 1000][k + 1000] = 2;
             }
         }
 
