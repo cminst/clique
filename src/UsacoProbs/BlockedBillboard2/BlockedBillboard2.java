@@ -22,8 +22,6 @@ public class BlockedBillboard2 {
             }
         }
 
-        Rectangle lawnmower = new Rectangle(lowerX, lowerY, higherX - lowerX, higherY - lowerY);
-
         lowerX = r.nextInt();
         lowerY = r.nextInt();
         higherX = r.nextInt();
@@ -33,8 +31,6 @@ public class BlockedBillboard2 {
                 billboards[i + 1000][j + 1000] = 0;
             }
         }
-
-        Rectangle cowFood = new Rectangle(lowerX, lowerY, higherX - lowerX, higherY - lowerY);
 
         int minX = Integer.MAX_VALUE;
         int minY = Integer.MAX_VALUE;
