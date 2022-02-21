@@ -28,9 +28,10 @@ class df {
             addOccurences(x, y, points)
         }
 
-        for (i in points.keys) {
-            if (points[i]!!.size > 1) {
-            }
-        }
+        'z'.hashCode()
     }
+}
+
+fun main() {
+    println('a'.hashCode())
 }
