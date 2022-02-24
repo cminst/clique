@@ -1,44 +1,60 @@
 package UsacoProbs.SwapitySwap;
 
 import java.io.*;
-import java.util.Scanner;
+import java.util.*;
 
 public class SwapitySwap {
-    static int[] cows;
+    static ArrayList<Integer> cows = new ArrayList<>();
+    static int a, a2, b, b2;
 
-    public static void swap(int firstIndex, int secondIndex) {
-        var firstCow = cows[firstIndex];
-        cows[firstIndex] = cows[secondIndex];
-        cows[secondIndex] = firstCow;
+    static void reverseAB() {
+        int start = a;
+        int end = a2;
+        while (end - start > 0) {
+            Collections.swap(cows, start, end);
+            start++;
+            end--;
+        }
+        start = b;
+        end = b2;
+        while (end - start > 0) {
+            Collections.swap(cows, start, end);
+            start++;
+            end--;
+        }
     }
 
     public static void main(String[] args) throws IOException {
         Scanner r = new Scanner(new FileReader("swap.in"));
         PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter("swap.out")));
 
-        int nCows = r.nextInt();
-        int kTimes = r.nextInt();
+        var nCows = r.nextInt();
+        var kTimes = r.nextInt();
 
-        cows = new int[nCows];
-        for (int i = 0; i < nCows; i++) {
-            cows[i] = i+1;
+        for (var i = 0; i < nCows; i++) {
+            cows.add(i+1);
         }
 
-        int a = r.nextInt();
-        int a2 = r.nextInt();
-        int b = r.nextInt();
-        int b2 = r.nextInt();
+        ArrayList<Integer> originalCows = (ArrayList<Integer>) cows.clone();
 
-        for (int i = 0; i < kTimes; i++) {
-            for (int j = a; j < (a2 - (a - 1)) / 2+a; j++) {
-                swap(j-1, a2 - (j - a)-1);
-            }
-            for (int j = b; j < (b2 - (b - 1)) / 2+b; j++) {
-                swap(j-1, b2 - (j - b)-1);
-            }
+        a = r.nextInt()-1;
+        a2 = r.nextInt()-1;
+        b = r.nextInt()-1;
+        b2 = r.nextInt()-1;
+        var count = 0;
+
+        do {
+            reverseAB();
+            count++;
+        } while (!cows.equals(originalCows));
+
+        var m = kTimes%count;
+
+        for (int i = 0; i < m; i++) {
+            reverseAB();
         }
 
-        for (int cow : cows) {
+        for (var cow : cows) {
             pw.println(cow);
         }
         pw.close();
