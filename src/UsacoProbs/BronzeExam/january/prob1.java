@@ -1,8 +1,6 @@
-package UsacoProbs.BronzeExam;
+package UsacoProbs.BronzeExam.january;
 
-import java.io.*;
-import java.lang.reflect.Array;
-import java.util.Arrays;
+import java.io.IOException;
 import java.util.Scanner;
 
 public class prob1 {
