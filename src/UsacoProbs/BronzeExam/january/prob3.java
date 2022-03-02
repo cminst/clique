@@ -1,4 +1,4 @@
-package UsacoProbs.BronzeExam;
+package UsacoProbs.BronzeExam.january;
 
 import java.io.IOException;
 import java.util.Arrays;
