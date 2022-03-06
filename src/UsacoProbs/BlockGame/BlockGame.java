@@ -7,11 +7,8 @@ import java.util.Scanner;
 public class BlockGame {
 
     public static void addOccurrences(HashMap<Character, Integer> hashmap, Object c) {
-        if (hashmap.containsKey(c.toString().toCharArray()[0])) {
-            hashmap.put((Character) c, hashmap.get(c) + 1);
-        } else {
-            hashmap.put((Character) c, 1);
-        }
+        if (hashmap.containsKey(c.toString().toCharArray()[0])) hashmap.put((Character) c, hashmap.get(c) + 1);
+        else hashmap.put((Character) c, 1);
     }
 
     public static void main(String[] args) throws IOException {
@@ -39,9 +36,7 @@ public class BlockGame {
             result[i] = maxCount;
         }
 
-        for (int j : result) {
-            pw.println(j);
-        }
+        for (int j : result) pw.println(j);
         pw.close();
     }
 }
