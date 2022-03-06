@@ -1,7 +1,6 @@
 package UsacoProbs.BackAndForth;
 
 import java.io.*;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Scanner;
@@ -14,11 +13,11 @@ public class BackAndForth {
         }
         hashMap.put(bucketSize, hashMap.get(bucketSize) + 1);
     }
+
     public static void removeOccurrences(HashMap<Integer, Integer> hashMap, int bucketSize) {
         if (hashMap.get(bucketSize) == 1) {
             hashMap.remove(bucketSize);
-        }
-        else {
+        } else {
             hashMap.put(bucketSize, hashMap.get(bucketSize) - 1);
         }
     }
@@ -41,27 +40,24 @@ public class BackAndForth {
         pw.close();
     }
 
-    static ArrayList<Integer> milk = new ArrayList<>();
-
     private static boolean possibleResults(int count, int milk) {
         HashMap<Integer, Integer> bucketSizes1 = differentBucketSizes1;
         HashMap<Integer, Integer> bucketSizes2 = differentBucketSizes2;
         int n = -1;
-        if(count % 2 == 0) {
+        if (count % 2 == 0) {
             bucketSizes1 = differentBucketSizes2;
             bucketSizes2 = differentBucketSizes1;
             n = 1;
         }
 
-        for (int i : ((HashMap<Integer, Integer>) bucketSizes1.clone()).keySet()) {
+        for (int i : bucketSizes1.keySet()) {
             if (count != 4) {
                 removeOccurrences(bucketSizes1, i);
                 addOccurrences(bucketSizes2, i);
-                possibleResults(count+1, milk+i*n);
+                possibleResults(count + 1, milk + i * n);
                 addOccurrences(bucketSizes1, i);
                 removeOccurrences(bucketSizes2, i);
-            }
-            else possMilk.add(milk+i*n);
+            } else possMilk.add(milk + i * n);
         }
         return false;
     }
