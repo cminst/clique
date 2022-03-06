@@ -21,7 +21,7 @@ public class CircularBarn {
         for (int i = 0; i < nRooms; i++) {
             int cowDistance = 0;
             for (int j = 0; j < nRooms; j++) {
-                cowDistance+= j*getCount(i+j, roomCows);
+                cowDistance += j * getCount(i + j, roomCows);
             }
             if (cowDistance < maxDistance) {
                 maxDistance = cowDistance;
