@@ -1,6 +1,5 @@
 package UsacoProbs.BlockedBillboard2;
 
-import java.awt.*;
 import java.io.*;
 import java.util.Scanner;
 
@@ -62,7 +61,7 @@ public class BlockedBillboard2 {
             pw.println(0);
             pw.close();
         }
-            pw.println((maxX + 1 - minX) * (maxY + 1 - minY));
+        pw.println((maxX + 1 - minX) * (maxY + 1 - minY));
         pw.close();
     }
 }
