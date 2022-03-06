@@ -12,7 +12,7 @@ public class BovineShuffle {
         int[] shuffle = new int[numCows];
         int[] cowIDs = new int[numCows];
         for (int i = 0; i < numCows; i++)
-            shuffle[i] = r.nextInt()-1;
+            shuffle[i] = r.nextInt() - 1;
         for (int i = 0; i < numCows; i++)
             cowIDs[i] = r.nextInt();
         int[] temparr = cowIDs.clone();
