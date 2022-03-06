@@ -28,18 +28,18 @@ public class FieldReduction {
         ArrayList<Point> up = new ArrayList<>();
         ArrayList<Point> down = new ArrayList<>();
 
-        for (int i = 0; i < points.size(); i++) {
-            if (points.get(i).x == minX)
-                left.add(new Point(points.get(i).x, points.get(i).y));
+        for (Point point : points) {
+            if (point.x == minX)
+                left.add(new Point(point.x, point.y));
 
-            if (points.get(i).x == maxX)
-                right.add(new Point(points.get(i).x, points.get(i).y));
+            if (point.x == maxX)
+                right.add(new Point(point.x, point.y));
 
-            if (points.get(i).y == minY)
-                down.add(new Point(points.get(i).x, points.get(i).y));
+            if (point.y == minY)
+                down.add(new Point(point.x, point.y));
 
-            if (points.get(i).y == maxY)
-                up.add(new Point(points.get(i).x, points.get(i).y));
+            if (point.y == maxY)
+                up.add(new Point(point.x, point.y));
         }
 
         TreeSet<Integer> treeSet = new TreeSet<>();
@@ -48,32 +48,32 @@ public class FieldReduction {
         if (left.size() == 1) {
             points.remove(left.get(0));
             func(points);
-            treeSet.add((maxX - minX) * (maxY-minY));
+            treeSet.add((maxX - minX) * (maxY - minY));
             points.add(left.get(0));
         }
 
         if (right.size() == 1) {
             points.remove(right.get(0));
             func(points);
-            treeSet.add((maxX - minX) * (maxY-minY));
+            treeSet.add((maxX - minX) * (maxY - minY));
             points.add(right.get(0));
         }
 
         if (up.size() == 1) {
             points.remove(up.get(0));
             func(points);
-            treeSet.add((maxX - minX) * (maxY-minY));
+            treeSet.add((maxX - minX) * (maxY - minY));
             points.add(up.get(0));
         }
 
         if (down.size() == 1) {
             points.remove(down.get(0));
             func(points);
-            treeSet.add((maxX - minX) * (maxY-minY));
+            treeSet.add((maxX - minX) * (maxY - minY));
             points.add(down.get(0));
         }
 
-        treeSet.add((maxX - minX) * (maxY-minY));
+        treeSet.add((maxX - minX) * (maxY - minY));
         pw.println(treeSet.first());
         pw.close();
     }
