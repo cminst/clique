@@ -18,7 +18,7 @@ public class CowGymnastics {
         for (int i = 0; i < kSessions; i++) {
             for (int j = 0; j < nCows; j++) {
                 int id = r.nextInt();
-                hashMap.put(id, j+1);
+                hashMap.put(id, j + 1);
             }
             HashMap<Integer, Integer> h = new HashMap<>(hashMap);
             rankings.add(h);
@@ -32,7 +32,7 @@ public class CowGymnastics {
                 for (int k = 0; k < rankings.size(); k++) {
                     if (rankings.get(k).get(pair1) <= rankings.get(k).get(pair2)) {
                         check = false;
-                        k = rankings.size()-1;
+                        k = rankings.size() - 1;
                     }
                 }
                 if (check) {
