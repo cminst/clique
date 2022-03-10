@@ -1,4 +1,4 @@
-package UsacoProbs.LostCow;
+package UsacoProbs.bronze.LostCow;
 
 import java.io.*;
 import java.util.Scanner;
@@ -13,11 +13,9 @@ public class LostCow {
         int xDirection = 1;
         int distanceFromX = 1;
         int totalDistance = 0;
-
         while (true) {
             if ((xDirection == 1 && farmerPosition <= bessiePosition && bessiePosition <= farmerPosition + distanceFromX) || (xDirection == -1 && bessiePosition <= farmerPosition && bessiePosition >= farmerPosition - distanceFromX)) {
                 totalDistance += Math.abs(farmerPosition - bessiePosition);
-                pw.println(totalDistance);
                 break;
             } else {
                 totalDistance += distanceFromX * 2;
@@ -26,6 +24,7 @@ public class LostCow {
             }
         }
 
+        pw.println(totalDistance);
         pw.close();
     }
 }
