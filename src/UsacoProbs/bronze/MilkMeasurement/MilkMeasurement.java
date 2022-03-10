@@ -1,7 +1,8 @@
-package UsacoProbs.MilkMeasurement;
+package UsacoProbs.bronze.MilkMeasurement;
 
 import java.io.*;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Scanner;
 
 public class MilkMeasurement {
 
@@ -40,11 +41,9 @@ public class MilkMeasurement {
         for (Log log : logs) {
             if (log.name.equals("Bessie")) {
                 BessieMilk += log.changedOutput;
-            }
-            else if (log.name.equals("Elsie")) {
+            } else if (log.name.equals("Elsie")) {
                 ElsieMilk += log.changedOutput;
-            }
-            else {
+            } else {
                 MildredMilk += log.changedOutput;
             }
             boolean[] leaderboard = new boolean[]{false, false, false};
