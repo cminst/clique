@@ -14,16 +14,16 @@ public class Paint {
         int[] fence = new int[101];
 
         for (int i = 0; i < farmerEnd - farmerStart; i++) {
-            fence[i+farmerStart] = 1;
+            fence[i + farmerStart] = 1;
         }
 
         for (int i = 0; i < bessieEnd - bessieStart; i++) {
-            fence[i+bessieStart] = 1;
+            fence[i + bessieStart] = 1;
         }
 
         int count = 0;
         for (int i = 0; i < 101; i++) {
-            if (fence[i]  == 1) {
+            if (fence[i] == 1) {
                 count++;
             }
         }
