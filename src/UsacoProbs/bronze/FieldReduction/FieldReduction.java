@@ -1,4 +1,4 @@
-package UsacoProbs.FieldReduction;
+package UsacoProbs.bronze.FieldReduction;
 
 import java.io.*;
 import java.util.*;
