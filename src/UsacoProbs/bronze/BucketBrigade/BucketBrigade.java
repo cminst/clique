@@ -1,4 +1,4 @@
-package UsacoProbs.BucketBrigade;
+package UsacoProbs.bronze.BucketBrigade;
 
 import java.awt.*;
 import java.io.*;
