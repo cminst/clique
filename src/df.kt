@@ -1,4 +1,3 @@
-import UsacoProbs.Triangles.Triangles
 import java.io.BufferedWriter
 import java.io.FileReader
 import java.io.FileWriter
