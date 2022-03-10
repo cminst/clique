@@ -1,4 +1,4 @@
-package UsacoProbs.CircularBarn;
+package UsacoProbs.bronze.CircularBarn;
 
 import java.io.*;
 import java.util.Scanner;
