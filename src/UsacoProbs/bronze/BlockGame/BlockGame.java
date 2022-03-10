@@ -1,4 +1,4 @@
-package UsacoProbs.BlockGame;
+package UsacoProbs.bronze.BlockGame;
 
 import java.io.*;
 import java.util.HashMap;
