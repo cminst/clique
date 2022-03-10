@@ -1,4 +1,4 @@
-package UsacoProbs.HoofBall;
+package UsacoProbs.bronze.HoofBall;
 
 import java.io.*;
 import java.util.Arrays;
