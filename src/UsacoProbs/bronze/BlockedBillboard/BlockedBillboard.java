@@ -1,4 +1,4 @@
-package UsacoProbs.BlockedBillboard;
+package UsacoProbs.bronze.BlockedBillboard;
 
 import java.io.*;
 import java.util.Scanner;
