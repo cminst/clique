@@ -1,3 +1,4 @@
+package UsacoProbs.bronze.CowEvolution;
 
 import java.io.*;
 import java.util.ArrayList;
