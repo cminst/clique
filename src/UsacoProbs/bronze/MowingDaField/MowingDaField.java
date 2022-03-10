@@ -1,4 +1,4 @@
-package UsacoProbs.MowingDaField;
+package UsacoProbs.bronze.MowingDaField;
 
 import java.io.*;
 import java.util.Scanner;
@@ -34,8 +34,8 @@ public class MowingDaField {
                     x--;
                 }
                 if (arr2d[x][y] != -1) {
-                    if (t-arr2d[x][y]+1 < xgrass) {
-                        xgrass = t-arr2d[x][y]+1;
+                    if (t - arr2d[x][y] + 1 < xgrass) {
+                        xgrass = t - arr2d[x][y] + 1;
                     }
                 }
                 t++;
