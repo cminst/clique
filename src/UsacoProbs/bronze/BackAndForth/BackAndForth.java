@@ -1,4 +1,4 @@
-package UsacoProbs.BackAndForth;
+package UsacoProbs.bronze.BackAndForth;
 
 import java.io.*;
 import java.util.HashMap;
