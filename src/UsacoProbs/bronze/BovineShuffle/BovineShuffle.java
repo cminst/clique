@@ -1,4 +1,4 @@
-package UsacoProbs.BovineShuffle;
+package UsacoProbs.bronze.BovineShuffle;
 
 import java.io.*;
 import java.util.Scanner;
