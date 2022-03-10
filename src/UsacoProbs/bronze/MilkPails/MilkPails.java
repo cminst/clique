@@ -1,4 +1,4 @@
-package UsacoProbs.MilkPails;
+package UsacoProbs.bronze.MilkPails;
 
 import java.io.*;
 import java.util.Scanner;
@@ -14,13 +14,13 @@ public class MilkPails {
         int m = r.nextInt();
         int max = 0;
         int numY = 0;
-        if (m/y > max) {
-            max = m/y;
+        if (m / y > max) {
+            max = m / y;
         }
-        int num = m/y;
+        int num = m / y;
         for (int i = 0; i <= num; i++) {
-            if (x*(m/x)+(numY*y) > max) {
-                max = x*(m/x)+(numY*y);
+            if (x * (m / x) + (numY * y) > max) {
+                max = x * (m / x) + (numY * y);
             }
             m -= y;
             numY++;
