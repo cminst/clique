@@ -1,4 +1,4 @@
-package UsacoProbs.CowGymnastics;
+package UsacoProbs.bronze.CowGymnastics;
 
 import java.io.*;
 import java.util.ArrayList;
