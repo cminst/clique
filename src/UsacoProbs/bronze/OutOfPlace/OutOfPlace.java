@@ -1,4 +1,4 @@
-package UsacoProbs.OutOfPlace;
+package UsacoProbs.bronze.OutOfPlace;
 
 import java.io.*;
 import java.util.HashSet;
@@ -37,19 +37,11 @@ public class OutOfPlace {
 
         var hashset = new HashSet<Integer>();
         if (bessie > actualSpot) {
-            if (cows[actualSpot] == cows[bessie]) {
-                actualSpot++;
-            }
-            for (int i = actualSpot; i < bessie; i++) {
-                hashset.add(cows[i]);
-            }
+            if (cows[actualSpot] == cows[bessie]) actualSpot++;
+            for (int i = actualSpot; i < bessie; i++) hashset.add(cows[i]);
         } else {
-            if (cows[actualSpot] < cows[bessie]) {
-                actualSpot++;
-            }
-            for (int i = bessie + 1; i < actualSpot; i++) {
-                hashset.add(cows[i]);
-            }
+            if (cows[actualSpot] < cows[bessie]) actualSpot++;
+            for (int i = bessie + 1; i < actualSpot; i++) hashset.add(cows[i]);
         }
 
         pw.println(hashset.size());
