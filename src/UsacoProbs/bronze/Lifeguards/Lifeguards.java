@@ -1,4 +1,4 @@
-package UsacoProbs.Lifeguards;
+package UsacoProbs.bronze.Lifeguards;
 
 import java.io.*;
 import java.util.HashMap;
@@ -11,22 +11,22 @@ public class Lifeguards {
         PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter("lifeguards.out")));
 
         int n = r.nextInt();
-        HashMap<Integer, Integer> lifegaurds = new HashMap<>();
+        HashMap<Integer, Integer> lifeguards = new HashMap<>();
 
         for (int i = 0; i < n; i++) {
-            int starttime = r.nextInt();
-            int endtime = r.nextInt();
-            lifegaurds.put(starttime, endtime);
+            int startTime = r.nextInt();
+            int endTime = r.nextInt();
+            lifeguards.put(startTime, endTime);
         }
 
         int max = 0;
-        for (int i: lifegaurds.keySet()) {
+        for (int i : lifeguards.keySet()) {
             int[] time = new int[1000];
             int numLifeguard = 0;
 
-            for (int j : lifegaurds.keySet()) {
+            for (int j : lifeguards.keySet()) {
                 if (j != i) {
-                    for (int k = j; k < lifegaurds.get(j); k++) {
+                    for (int k = j; k < lifeguards.get(j); k++) {
                         if (time[k] == 0) {
                             numLifeguard++;
                         }
