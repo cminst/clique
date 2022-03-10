@@ -1,4 +1,4 @@
-package UsacoProbs.LivestockLineup;
+package UsacoProbs.bronze.LivestockLineup;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -32,9 +32,7 @@ public class LivestockLineup {
         }
 
         permutations(cowNames, new ArrayList<>());
-        for (String c : list) {
-            pw.println(c);
-        }
+        for (String c : list) pw.println(c);
         pw.close();
     }
 
@@ -49,9 +47,7 @@ public class LivestockLineup {
     }
 
     private static void permutations(ArrayList<String> arr, ArrayList<String> k) {
-        if (result) {
-            return;
-        }
+        if (result) return;
 
         if (arr.size() == 0) {
             if (check(k)) {
@@ -67,10 +63,10 @@ public class LivestockLineup {
             ArrayList<String> notCows = new ArrayList<>(arr);
             notCows.remove(i);
 
-            ArrayList<String> newk = new ArrayList<>(k);
-            newk.add(tiredCow);
+            ArrayList<String> newK = new ArrayList<>(k);
+            newK.add(tiredCow);
 
-            permutations(notCows, newk);
+            permutations(notCows, newK);
         }
     }
 }
