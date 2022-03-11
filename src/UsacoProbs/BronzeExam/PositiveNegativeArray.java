@@ -17,19 +17,17 @@ public class PositiveNegativeArray {
 
         Stack<Stack<Integer>> stack = new Stack<>();
         Stack<Integer> group = new Stack<>();
-        for (int i = 0; i < array.length; i++) {
-            if (array[i] != 0) {
-                if (group.isEmpty() || (group.peek() < 0 && array[i] < 0) || (group.peek() > 0 && array[i] > 0)) {
-                    group.push(array[i]);
-                }
-                else {
+        for (int j : array) {
+            if (j != 0) {
+                if (group.isEmpty() || (group.peek() < 0 && j < 0) || (group.peek() > 0 && j > 0)) {
+                    group.push(j);
+                } else {
                     Stack<Integer> g = (Stack<Integer>) group.clone();
                     stack.push(g);
                     group.clear();
-                    group.push(array[i]);
+                    group.push(j);
                 }
-            }
-            else {
+            } else {
                 Stack<Integer> g = (Stack<Integer>) group.clone();
                 if (!g.isEmpty()) {
                     stack.push(g);
