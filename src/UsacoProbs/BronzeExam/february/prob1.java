@@ -40,12 +40,12 @@ public class prob1 {
             var check = false;
             var target = 0;
             for (int j = max; j <= sumOfNaps; j++) {
-                if (sumOfNaps%j == 0) {
+                if (sumOfNaps % j == 0) {
                     target = j;
-                    check= false;
-                    for (int k = 0; k < naps.length-1; k++) {
+                    check = false;
+                    for (int k = 0; k < naps.length - 1; k++) {
                         if (naps[k] < target) {
-                            naps[k+1] += naps[k];
+                            naps[k + 1] += naps[k];
                             modifications++;
                         }
                         if (naps[k] > target) {
