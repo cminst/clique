@@ -16,7 +16,7 @@ public class RecordMilking {
             int recordRate = r.nextInt();
             int ind = index;
             for (int j = 0; j < recordMinutes; j++) {
-                recordRates[j+ind] = recordRate;
+                recordRates[j + ind] = recordRate;
                 index++;
             }
         }
@@ -27,15 +27,15 @@ public class RecordMilking {
             int bessieRate = r.nextInt();
             int ind = index;
             for (int j = 0; j < bessieMinutes; j++) {
-                bessieRates[j+ind] = bessieRate;
+                bessieRates[j + ind] = bessieRate;
                 index++;
             }
         }
 
         int maxDiff = 0;
         for (int i = 0; i < bessieRates.length; i++) {
-            if (bessieRates[i]-recordRates[i] > maxDiff) {
-                maxDiff = bessieRates[i]-recordRates[i];
+            if (bessieRates[i] - recordRates[i] > maxDiff) {
+                maxDiff = bessieRates[i] - recordRates[i];
             }
         }
         System.out.println(maxDiff);
