@@ -1,4 +1,4 @@
-package UsacoProbs.WhereAm1;
+package UsacoProbs.bronze.WhereAm1;
 
 import java.io.*;
 import java.util.HashMap;
@@ -21,11 +21,11 @@ public class WhereAm1 {
         int notDuplicates = 0;
         for (int i = 0; i < nMailboxes + 1; i++) {
             for (int j = i; j < nMailboxes; j++) {
-                String s = str.substring(i, j+1);
+                String s = str.substring(i, j + 1);
                 int count = 0;
                 int first = 0;
-                while (first <= str.length()-s.length()) {
-                    int second = first+s.length();
+                while (first <= str.length() - s.length()) {
+                    int second = first + s.length();
                     if (str.substring(first, second).equals(s)) {
                         count++;
                     }
