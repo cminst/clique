@@ -1,3 +1,4 @@
+package CodeForces.SortedAdjacentDifferences;
 
 import java.util.*;
 
