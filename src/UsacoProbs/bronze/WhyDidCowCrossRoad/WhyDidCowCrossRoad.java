@@ -1,4 +1,4 @@
-package UsacoProbs.WhyDidCowCrossRoad;
+package UsacoProbs.bronze.WhyDidCowCrossRoad;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -38,9 +38,7 @@ public class WhyDidCowCrossRoad {
         Collections.sort(pairs);
         int time = pairs.get(0).start;
         for (int i = 0; i < numCows; i++) {
-            if (pairs.get(i).start > time) {
-                time += pairs.get(i).start - time;
-            }
+            if (pairs.get(i).start > time) time += pairs.get(i).start - time;
             time += pairs.get(i).questionTime;
         }
         pw.println(time);
