@@ -1,4 +1,4 @@
-package UsacoProbs.WordProcessor;
+package UsacoProbs.bronze.WordProcessor;
 
 import java.io.*;
 import java.util.Scanner;
@@ -19,13 +19,12 @@ public class WordProcessor {
         var numChars = 0;
         var i = 0;
         while (i < strings.length) {
-            if (numChars +strings[i].length() <= maxCharacters) {
+            if (numChars + strings[i].length() <= maxCharacters) {
                 str.append(strings[i]);
-                numChars+= strings[i].length();
+                numChars += strings[i].length();
                 str.append(" ");
-            }
-            else {
-                str.deleteCharAt(str.length()-1);
+            } else {
+                str.deleteCharAt(str.length() - 1);
                 pw.println(str);
                 str = new StringBuilder();
                 numChars = 0;
@@ -34,7 +33,7 @@ public class WordProcessor {
             i++;
         }
         if (str.length() != 0) {
-            str.deleteCharAt(str.length()-1);
+            str.deleteCharAt(str.length() - 1);
             pw.println(str);
         }
         pw.close();
