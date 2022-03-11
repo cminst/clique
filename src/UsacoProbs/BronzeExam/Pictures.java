@@ -11,30 +11,25 @@ public class Pictures {
         long left = r.nextInt();
         long right = r.nextInt();
 
-        if (left == 0L){
+        if (left == 0L) {
             if (right >= 2) {
                 System.out.println(right - 1);
-            }
-            else {
+            } else {
                 System.out.println(0);
             }
-        }
-        else if (left == 1L) {
+        } else if (left == 1L) {
             if (right >= 1) {
                 System.out.println(right);
-            }
-            else {
+            } else {
                 System.out.println(0);
             }
-        }
-        else {
+        } else {
             int count = 0;
-            for (int i = 0; i < left+1; i++) {
+            for (int i = 0; i < left + 1; i++) {
                 if (i <= 2) {
-                    count += right-1+i;
-                }
-                else {
-                    count += right+1;
+                    count += right - 1 + i;
+                } else {
+                    count += right + 1;
                 }
             }
             System.out.println(count);
