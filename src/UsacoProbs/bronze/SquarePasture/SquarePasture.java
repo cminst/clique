@@ -1,4 +1,4 @@
-package UsacoProbs.SquarePasture;
+package UsacoProbs.bronze.SquarePasture;
 
 import java.io.*;
 import java.util.Scanner;
@@ -8,6 +8,7 @@ public class SquarePasture {
         Scanner r = new Scanner(new FileReader("square.in"));
         PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter("square.out")));
         int lowerX = r.nextInt(), lowerY = r.nextInt(), higherX = r.nextInt(), higherY = r.nextInt(), lowerX2 = r.nextInt(), lowerY2 = r.nextInt(), higherX2 = r.nextInt(), higherY2 = r.nextInt();
+
         pw.println((int) Math.pow(Math.max(Math.max(higherY, higherY2) - Math.min(lowerY, lowerY2), Math.max(higherX, higherX2) - Math.min(lowerX, lowerX2)), 2));
         pw.close();
     }
