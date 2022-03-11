@@ -1,7 +1,9 @@
-package UsacoProbs.SwapitySwap;
+package UsacoProbs.bronze.SwapitySwap;
 
 import java.io.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Scanner;
 
 public class SwapitySwap {
     static ArrayList<Integer> cows = new ArrayList<>();
@@ -32,15 +34,15 @@ public class SwapitySwap {
         var kTimes = r.nextInt();
 
         for (var i = 0; i < nCows; i++) {
-            cows.add(i+1);
+            cows.add(i + 1);
         }
 
         ArrayList<Integer> originalCows = (ArrayList<Integer>) cows.clone();
 
-        a = r.nextInt()-1;
-        a2 = r.nextInt()-1;
-        b = r.nextInt()-1;
-        b2 = r.nextInt()-1;
+        a = r.nextInt() - 1;
+        a2 = r.nextInt() - 1;
+        b = r.nextInt() - 1;
+        b2 = r.nextInt() - 1;
         var count = 0;
 
         do {
@@ -48,7 +50,7 @@ public class SwapitySwap {
             count++;
         } while (!cows.equals(originalCows));
 
-        var m = kTimes%count;
+        var m = kTimes % count;
 
         for (int i = 0; i < m; i++) {
             reverseAB();
