@@ -1,4 +1,4 @@
-package UsacoProbs.Triangles;
+package UsacoProbs.bronze.Triangles;
 
 import java.io.*;
 import java.util.Scanner;
@@ -20,14 +20,11 @@ public class Triangles {
         int result = 0;
         for (int i = 0; i < nPoints; i++) {
             for (int xCurrent = 0; xCurrent < nPoints; xCurrent++) {
-                if (i == xCurrent || x[i] != x[xCurrent])
-                    continue;
+                if (i == xCurrent || x[i] != x[xCurrent]) continue;
                 for (int yCurrent = 0; yCurrent < nPoints; yCurrent++) {
-                    if (i == yCurrent || y[i] != y[yCurrent])
-                        continue;
+                    if (i == yCurrent || y[i] != y[yCurrent]) continue;
                     int area = Math.abs(x[yCurrent] - x[i]) * Math.abs(y[xCurrent] - y[i]);
-                    if (area > result)
-                        result = area;
+                    if (area > result) result = area;
                 }
             }
         }
