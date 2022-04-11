@@ -44,7 +44,6 @@ public class FieldReduction {
 
         TreeSet<Integer> treeSet = new TreeSet<>();
 
-        int area;
         if (left.size() == 1) {
             points.remove(left.get(0));
             func(points);
