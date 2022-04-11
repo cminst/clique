@@ -22,6 +22,7 @@ public class FieldReduction2 {
             for (Integer index : indices) {
                 if (index == i) {
                     skip = true;
+                    break;
                 }
             }
             if (skip) {
@@ -46,6 +47,7 @@ public class FieldReduction2 {
             for (Integer index : indices) {
                 if (index == i) {
                     skip = true;
+                    break;
                 }
             }
 
