@@ -1,3 +1,4 @@
+package UsacoProbs.silver.HighCardWins;
 
 import java.io.*;
 import java.util.Scanner;
