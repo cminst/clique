@@ -1,3 +1,4 @@
+package UsacoProbs.silver.RestStops;
 
 import java.io.*;
 import java.util.Scanner;
