@@ -1,4 +1,4 @@
-package UsacoProbs.silver;
+package UsacoProbs.silver.MountainView;
 
 import java.io.*;
 import java.util.Scanner;
