@@ -1,4 +1,4 @@
-package UsacoProbs.silver;
+package UsacoProbs.silver.LemonadeLine;
 
 import java.io.*;
 import java.util.ArrayList;
