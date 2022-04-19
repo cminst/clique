@@ -1,3 +1,4 @@
+package UsacoProbs.silver.WhyCowCrossedRoad;
 
 import java.io.*;
 import java.util.ArrayList;
