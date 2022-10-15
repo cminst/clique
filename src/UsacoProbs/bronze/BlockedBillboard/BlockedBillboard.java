@@ -15,9 +15,7 @@ public class BlockedBillboard {
             int higherX = r.nextInt();
             int higherY = r.nextInt();
             for (int j = lowerX; j < higherX; j++) {
-                for (int k = lowerY; k < higherY; k++) {
-                    billboards[j + 1000][k + 1000] = 1;
-                }
+                for (int k = lowerY; k < higherY; k++) billboards[j + 1000][k + 1000] = 1;
             }
         }
 
@@ -26,17 +24,13 @@ public class BlockedBillboard {
         int higherX = r.nextInt();
         int higherY = r.nextInt();
         for (int j = lowerX; j < higherX; j++) {
-            for (int k = lowerY; k < higherY; k++) {
-                billboards[j + 1000][k + 1000] = 2;
-            }
+            for (int k = lowerY; k < higherY; k++) billboards[j + 1000][k + 1000] = 2;
         }
 
         int count = 0;
-        for (int i = 0; i < billboards.length; i++) {
+        for (int[] billboard : billboards) {
             for (int j = 0; j < billboards.length; j++) {
-                if (billboards[i][j] == 1) {
-                    count++;
-                }
+                if (billboard[j] == 1) count++;
             }
         }
         pw.println(count);
