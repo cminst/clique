@@ -8,18 +8,13 @@ import java.util.Scanner;
 public class BackAndForth {
 
     public static void addOccurrences(HashMap<Integer, Integer> hashMap, int bucketSize) {
-        if (!hashMap.containsKey(bucketSize)) {
-            hashMap.put(bucketSize, 0);
-        }
+        if (!hashMap.containsKey(bucketSize)) hashMap.put(bucketSize, 0);
         hashMap.put(bucketSize, hashMap.get(bucketSize) + 1);
     }
 
     public static void removeOccurrences(HashMap<Integer, Integer> hashMap, int bucketSize) {
-        if (hashMap.get(bucketSize) == 1) {
-            hashMap.remove(bucketSize);
-        } else {
-            hashMap.put(bucketSize, hashMap.get(bucketSize) - 1);
-        }
+        if (hashMap.get(bucketSize) == 1) hashMap.remove(bucketSize);
+        else hashMap.put(bucketSize, hashMap.get(bucketSize) - 1);
     }
 
     static HashSet<Integer> possMilk = new HashSet<>();
@@ -29,12 +24,8 @@ public class BackAndForth {
     public static void main(String[] args) throws IOException {
         Scanner r = new Scanner(new FileReader("backforth.in"));
         PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter("backforth.out")));
-        for (int i = 0; i < 10; i++) {
-            addOccurrences(differentBucketSizes1, r.nextInt());
-        }
-        for (int i = 0; i < 10; i++) {
-            addOccurrences(differentBucketSizes2, r.nextInt());
-        }
+        for (int i = 0; i < 10; i++) addOccurrences(differentBucketSizes1, r.nextInt());
+        for (int i = 0; i < 10; i++) addOccurrences(differentBucketSizes2, r.nextInt());
         possibleResults(1, 0);
         pw.println(possMilk.size());
         pw.close();
