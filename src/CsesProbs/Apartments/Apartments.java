@@ -1,34 +1,10 @@
 package CsesProbs.Apartments;
 
 import java.io.*;
-import java.util.*;
+import java.util.Arrays;
+import java.util.StringTokenizer;
 
 public class Apartments {
-    static class InputReader {
-        BufferedReader reader;
-        StringTokenizer tokenizer;
-
-        public InputReader(InputStream stream) {
-            reader = new BufferedReader(new InputStreamReader(stream), 32768);
-            tokenizer = null;
-        }
-
-        String next() {
-            while (tokenizer == null || !tokenizer.hasMoreTokens()) {
-                try {
-                    tokenizer = new StringTokenizer(reader.readLine());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            return tokenizer.nextToken();
-        }
-
-        public int nextInt() {
-            return Integer.parseInt(next());
-        }
-    }
-
     static InputReader r = new InputReader(System.in);
     static PrintWriter pw = new PrintWriter(System.out);
 
@@ -52,14 +28,14 @@ public class Apartments {
             if (j == numApartment) {
                 break;
             }
-            if (applicantApartmentSizes[i] > apartmentSizes[j]+maxk) {
+            if (applicantApartmentSizes[i] > apartmentSizes[j] + maxk) {
                 j++;
                 continue;
-            } else if (applicantApartmentSizes[i] < apartmentSizes[j]-maxk) {
+            } else if (applicantApartmentSizes[i] < apartmentSizes[j] - maxk) {
                 i++;
                 continue;
             }
-            if (apartmentSizes[j] >= applicantApartmentSizes[i]-maxk && apartmentSizes[j] <= applicantApartmentSizes[i]+maxk) {
+            if (apartmentSizes[j] >= applicantApartmentSizes[i] - maxk && apartmentSizes[j] <= applicantApartmentSizes[i] + maxk) {
                 result++;
                 i++;
                 j++;
@@ -67,5 +43,30 @@ public class Apartments {
         }
         pw.println(result);
         pw.close();
+    }
+
+    static class InputReader {
+        BufferedReader reader;
+        StringTokenizer tokenizer;
+
+        public InputReader(InputStream stream) {
+            reader = new BufferedReader(new InputStreamReader(stream), 32768);
+            tokenizer = null;
+        }
+
+        String next() {
+            while (tokenizer == null || !tokenizer.hasMoreTokens()) {
+                try {
+                    tokenizer = new StringTokenizer(reader.readLine());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            return tokenizer.nextToken();
+        }
+
+        public int nextInt() {
+            return Integer.parseInt(next());
+        }
     }
 }
