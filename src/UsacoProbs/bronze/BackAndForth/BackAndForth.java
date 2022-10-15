@@ -7,6 +7,10 @@ import java.util.Scanner;
 
 public class BackAndForth {
 
+    static HashSet<Integer> possMilk = new HashSet<>();
+    static HashMap<Integer, Integer> differentBucketSizes1 = new HashMap<>();
+    static HashMap<Integer, Integer> differentBucketSizes2 = new HashMap<>();
+
     public static void addOccurrences(HashMap<Integer, Integer> hashMap, int bucketSize) {
         if (!hashMap.containsKey(bucketSize)) hashMap.put(bucketSize, 0);
         hashMap.put(bucketSize, hashMap.get(bucketSize) + 1);
@@ -16,10 +20,6 @@ public class BackAndForth {
         if (hashMap.get(bucketSize) == 1) hashMap.remove(bucketSize);
         else hashMap.put(bucketSize, hashMap.get(bucketSize) - 1);
     }
-
-    static HashSet<Integer> possMilk = new HashSet<>();
-    static HashMap<Integer, Integer> differentBucketSizes1 = new HashMap<>();
-    static HashMap<Integer, Integer> differentBucketSizes2 = new HashMap<>();
 
     public static void main(String[] args) throws IOException {
         Scanner r = new Scanner(new FileReader("backforth.in"));
