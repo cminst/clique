@@ -6,31 +6,8 @@ import java.util.Collections;
 import java.util.StringTokenizer;
 
 public class ConcertTickets {
-    static class InputReader {
-        BufferedReader reader;
-        StringTokenizer tokenizer;
-
-        public InputReader(InputStream stream) {
-            reader = new BufferedReader(new InputStreamReader(stream), 32768);
-            tokenizer = null;
-        }
-
-        String next() {
-            while (tokenizer == null || !tokenizer.hasMoreTokens()) {
-                try {
-                    tokenizer = new StringTokenizer(reader.readLine());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            return tokenizer.nextToken();
-        }
-
-        public int nextInt() { // reads in the next int
-            return Integer.parseInt(next());
-        }
-
-    }
+    static InputReader r = new InputReader(System.in);
+    static PrintWriter pw = new PrintWriter(System.out);
 
     public static int binarySearch(ArrayList<Integer> a, int key) {
         int low = 0;
@@ -58,9 +35,6 @@ public class ConcertTickets {
         return a.get(low - 1);
     }
 
-    static InputReader r = new InputReader(System.in);
-    static PrintWriter pw = new PrintWriter(System.out);
-
     public static void main(String[] args) {
         int nTickets = r.nextInt();
         int mCustomers = r.nextInt();
@@ -82,5 +56,31 @@ public class ConcertTickets {
             i++;
         }
         pw.close();
+    }
+
+    static class InputReader {
+        BufferedReader reader;
+        StringTokenizer tokenizer;
+
+        public InputReader(InputStream stream) {
+            reader = new BufferedReader(new InputStreamReader(stream), 32768);
+            tokenizer = null;
+        }
+
+        String next() {
+            while (tokenizer == null || !tokenizer.hasMoreTokens()) {
+                try {
+                    tokenizer = new StringTokenizer(reader.readLine());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            return tokenizer.nextToken();
+        }
+
+        public int nextInt() { // reads in the next int
+            return Integer.parseInt(next());
+        }
+
     }
 }
