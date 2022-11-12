@@ -1,4 +1,5 @@
 package UsacoProbs.bronze.cowsay;
+
 import com.github.ricksbrown.cowsay.Cowsay;
 
 public class cowsay {
