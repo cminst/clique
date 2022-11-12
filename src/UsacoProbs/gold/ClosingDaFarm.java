@@ -1,4 +1,4 @@
-package UsacoProbs.silver.ClosingDaFarm;
+package UsacoProbs.gold;
 
 import java.io.*;
 import java.util.ArrayList;
