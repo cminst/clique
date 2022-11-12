@@ -35,9 +35,7 @@ public class CowGymnastics {
                         k = rankings.size() - 1;
                     }
                 }
-                if (check) {
-                    count++;
-                }
+                if (check) count++;
             }
         }
         pw.println(count);
