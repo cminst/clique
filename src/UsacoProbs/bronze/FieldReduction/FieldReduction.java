@@ -29,17 +29,13 @@ public class FieldReduction {
         ArrayList<Point> down = new ArrayList<>();
 
         for (Point point : points) {
-            if (point.x == minX)
-                left.add(new Point(point.x, point.y));
+            if (point.x == minX) left.add(new Point(point.x, point.y));
 
-            if (point.x == maxX)
-                right.add(new Point(point.x, point.y));
+            if (point.x == maxX) right.add(new Point(point.x, point.y));
 
-            if (point.y == minY)
-                down.add(new Point(point.x, point.y));
+            if (point.y == minY) down.add(new Point(point.x, point.y));
 
-            if (point.y == maxY)
-                up.add(new Point(point.x, point.y));
+            if (point.y == maxY) up.add(new Point(point.x, point.y));
         }
 
         TreeSet<Integer> treeSet = new TreeSet<>();
@@ -77,6 +73,23 @@ public class FieldReduction {
         pw.close();
     }
 
+    public static void func(ArrayList<Point> points) {
+        points.sort(Comparator.comparingInt(o -> o.x));
+        maxX = points.get(points.size() - 1).x;
+        minX = points.get(0).x;
+
+        maxX2 = points.get(points.size() - 2).x;
+        minX2 = points.get(1).x;
+
+        // y
+        points.sort(Comparator.comparingInt(o -> o.y));
+        maxY = points.get(points.size() - 1).y;
+        minY = points.get(0).y;
+
+        maxY2 = points.get(points.size() - 2).y;
+        minY2 = points.get(1).y;
+    }
+
     static class Point {
         public int x;
         public int y;
@@ -101,22 +114,5 @@ public class FieldReduction {
         public String toString() {
             return "(" + x + ", " + y + ')';
         }
-    }
-
-    public static void func(ArrayList<Point> points) {
-        points.sort(Comparator.comparingInt(o -> o.x));
-        maxX = points.get(points.size() - 1).x;
-        minX = points.get(0).x;
-
-        maxX2 = points.get(points.size() - 2).x;
-        minX2 = points.get(1).x;
-
-        // y
-        points.sort(Comparator.comparingInt(o -> o.y));
-        maxY = points.get(points.size() - 1).y;
-        minY = points.get(0).y;
-
-        maxY2 = points.get(points.size() - 2).y;
-        minY2 = points.get(1).y;
     }
 }
