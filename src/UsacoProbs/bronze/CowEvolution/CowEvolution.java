@@ -38,15 +38,13 @@ public class CowEvolution {
             for (int j = 0; j < kCharacteristics; j++) {
                 var str = r.next();
 
-                if (!features.contains(str)) {
-                    features.add(str);
-                }
+                if (!features.contains(str)) features.add(str);
                 characteristics.add(str);
             }
             eachFeatures.add(characteristics);
         }
 
-        for (int j = 0; j < features.size()-1; j++) {
+        for (int j = 0; j < features.size() - 1; j++) {
             for (int k = j + 1; k < features.size(); k++) {
                 if (crosses(j, k)) {
                     pw.println("no");
