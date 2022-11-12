@@ -12,15 +12,11 @@ public class Hoofball {
 
         int nCows = r.nextInt();
         int[] cows = new int[nCows];
-        for (int i = 0; i < nCows; i++) {
-            cows[i] = r.nextInt();
-        }
+        for (int i = 0; i < nCows; i++) cows[i] = r.nextInt();
         Arrays.sort(cows);
 
         int[] distances = new int[nCows - 1];
-        for (int i = 0; i < nCows - 1; i++) {
-            distances[i] = cows[i + 1] - cows[i];
-        }
+        for (int i = 0; i < nCows - 1; i++) distances[i] = cows[i + 1] - cows[i];
 
         var balls = 0;
 
@@ -33,9 +29,7 @@ public class Hoofball {
             } else if (distances[i] <= distances[i + 1] && direction == Direction.DOWN) {
                 balls++;
                 if (i < distances.length - 2) {
-                    if (distances[i + 1] > distances[i + 2]) {
-                        i++;
-                    }
+                    if (distances[i + 1] > distances[i + 2]) i++;
                 }
                 direction = Direction.DEVAULT;
                 continue;
@@ -49,29 +43,4 @@ public class Hoofball {
     }
 
     enum Direction {UP, DOWN, DEVAULT}
-
-
-    //        make result to 0
-    //        make prevDirection set to default
-    //        loop through distances {
-    //            if (i < distances.length - 1) {
-    //                if (current distance is bigger than next one && prevDirection == up) {
-    //                    prevDirection = default
-    //                    add to result
-    //                    continue;
-    //                }
-    //                if (current distance is less or equal to next one && prevDirection == down) {
-    //                    add to result
-    //                    if (i < distances.length - 2)
-    //                        if (distances[i + 1] > distances[i + 2])
-    //                            i++;
-    //                    prevDirection = default;
-    //                    continue;
-    //                }
-    //
-    //                if (distances[i] <= distances[i + 1])
-    //                    prevDirection = up;
-    //                else prevDirection = down;
-    //            } else add to result
-    //        }
 }
