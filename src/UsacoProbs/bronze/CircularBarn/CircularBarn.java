@@ -14,18 +14,12 @@ public class CircularBarn {
         PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter("cbarn.out")));
         int nRooms = r.nextInt();
         int[] roomCows = new int[nRooms];
-        for (int i = 0; i < nRooms; i++) {
-            roomCows[i] = r.nextInt();
-        }
+        for (int i = 0; i < nRooms; i++) roomCows[i] = r.nextInt();
         int maxDistance = Integer.MAX_VALUE;
         for (int i = 0; i < nRooms; i++) {
             int cowDistance = 0;
-            for (int j = 0; j < nRooms; j++) {
-                cowDistance += j * getCount(i + j, roomCows);
-            }
-            if (cowDistance < maxDistance) {
-                maxDistance = cowDistance;
-            }
+            for (int j = 0; j < nRooms; j++) cowDistance += j * getCount(i + j, roomCows);
+            if (cowDistance < maxDistance) maxDistance = cowDistance;
         }
         pw.println(maxDistance);
         pw.close();
