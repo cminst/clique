@@ -16,9 +16,7 @@ public class BlockedBillboard2 {
         int higherX = r.nextInt();
         int higherY = r.nextInt();
         for (int i = lowerX; i < higherX; i++) {
-            for (int j = lowerY; j < higherY; j++) {
-                billboards[i + 1000][j + 1000] = 1;
-            }
+            for (int j = lowerY; j < higherY; j++) billboards[i + 1000][j + 1000] = 1;
         }
 
         lowerX = r.nextInt();
@@ -26,9 +24,7 @@ public class BlockedBillboard2 {
         higherX = r.nextInt();
         higherY = r.nextInt();
         for (int i = lowerX; i < higherX; i++) {
-            for (int j = lowerY; j < higherY; j++) {
-                billboards[i + 1000][j + 1000] = 0;
-            }
+            for (int j = lowerY; j < higherY; j++) billboards[i + 1000][j + 1000] = 0;
         }
 
         int minX = Integer.MAX_VALUE;
@@ -38,21 +34,10 @@ public class BlockedBillboard2 {
         for (int i = 0; i < billboards.length; i++) {
             for (int j = 0; j < billboards.length; j++) {
                 if (billboards[i][j] == 1) {
-                    if (i < minX) {
-                        minX = i;
-                    }
-
-                    if (j < minY) {
-                        minY = j;
-                    }
-
-                    if (i > maxX) {
-                        maxX = i;
-                    }
-
-                    if (j > maxY) {
-                        maxY = j;
-                    }
+                    if (i < minX) minX = i;
+                    if (j < minY) minY = j;
+                    if (i > maxX) maxX = i;
+                    if (j > maxY) maxY = j;
                 }
             }
         }
