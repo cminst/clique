@@ -11,20 +11,14 @@ public class BovineShuffle {
         int numCows = r.nextInt();
         int[] shuffle = new int[numCows];
         int[] cowIDs = new int[numCows];
-        for (int i = 0; i < numCows; i++)
-            shuffle[i] = r.nextInt() - 1;
-        for (int i = 0; i < numCows; i++)
-            cowIDs[i] = r.nextInt();
-        int[] temparr = cowIDs.clone();
+        for (int i = 0; i < numCows; i++) shuffle[i] = r.nextInt() - 1;
+        for (int i = 0; i < numCows; i++) cowIDs[i] = r.nextInt();
+        int[] tempArr = cowIDs.clone();
         for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < numCows; j++) {
-                temparr[j] = cowIDs[shuffle[j]];
-            }
-            cowIDs = temparr.clone();
+            for (int j = 0; j < numCows; j++) tempArr[j] = cowIDs[shuffle[j]];
+            cowIDs = tempArr.clone();
         }
-        for (int i = 0; i < numCows; i++) {
-            pw.println(cowIDs[i]);
-        }
+        for (int i = 0; i < numCows; i++) pw.println(cowIDs[i]);
         pw.close();
     }
 }
