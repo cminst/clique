@@ -7,11 +7,6 @@ import java.util.Scanner;
 public class FieldReduction2 {
     static int n;
 
-    static class Analysis {
-        long area;
-        ArrayList<ArrayList<Integer>> borders;
-    }
-
     public static Analysis analyze(ArrayList<Integer> indices, int[] xs, int[] ys) {
         var minX = 1000000000;
         var minY = 1000000000;
@@ -25,9 +20,7 @@ public class FieldReduction2 {
                     break;
                 }
             }
-            if (skip) {
-                continue;
-            }
+            if (skip) continue;
 
             minX = Math.min(minX, xs[i]);
             maxX = Math.max(maxX, xs[i]);
@@ -101,5 +94,10 @@ public class FieldReduction2 {
         }
         pw.println(minArea);
         pw.close();
+    }
+
+    static class Analysis {
+        long area;
+        ArrayList<ArrayList<Integer>> borders;
     }
 }
