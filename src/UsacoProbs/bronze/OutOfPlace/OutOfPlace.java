@@ -21,18 +21,13 @@ public class OutOfPlace {
 
         for (int i = 1; i < nCows - 1; i++) {
             if (cows[i] < cows[i - 1]) {
-                if (cows[i + 1] >= cows[i - 1]) {
-                    bessie = i;
-                } else {
-                    bessie = i - 1;
-                }
+                if (cows[i + 1] >= cows[i - 1]) bessie = i;
+                else bessie = i - 1;
             }
         }
 
         for (int i = 0; i < cows.length; i++) {
-            if (cows[i] < cows[bessie]) {
-                actualSpot = i + 1;
-            }
+            if (cows[i] < cows[bessie]) actualSpot = i + 1;
         }
 
         var hashset = new HashSet<Integer>();
