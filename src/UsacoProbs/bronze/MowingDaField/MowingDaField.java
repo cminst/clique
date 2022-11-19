@@ -11,9 +11,7 @@ public class MowingDaField {
         int numlines = r.nextInt();
         int[][] arr2d = new int[2001][2001];
         for (int i = 0; i < arr2d.length; i++) {
-            for (int j = 0; j < arr2d.length; j++) {
-                arr2d[i][j] = -1;
-            }
+            for (int j = 0; j < arr2d.length; j++) arr2d[i][j] = -1;
         }
         int x = 1000;
         int y = 1000;
@@ -24,27 +22,18 @@ public class MowingDaField {
             String direction = r.next();
             int cells = r.nextInt();
             for (int j = 0; j < cells; j++) {
-                if (direction.equals("N")) {
-                    y++;
-                } else if (direction.equals("E")) {
-                    x++;
-                } else if (direction.equals("S")) {
-                    y--;
-                } else {
-                    x--;
-                }
+                if (direction.equals("N")) y++;
+                else if (direction.equals("E")) x++;
+                else if (direction.equals("S")) y--;
+                else x--;
                 if (arr2d[x][y] != -1) {
-                    if (t - arr2d[x][y] + 1 < xgrass) {
-                        xgrass = t - arr2d[x][y] + 1;
-                    }
+                    if (t - arr2d[x][y] + 1 < xgrass) xgrass = t - arr2d[x][y] + 1;
                 }
                 t++;
                 arr2d[x][y] = t;
             }
         }
-        if (xgrass == Integer.MAX_VALUE) {
-            xgrass = -1;
-        }
+        if (xgrass == Integer.MAX_VALUE) xgrass = -1;
         pw.println(xgrass);
         pw.close();
     }
