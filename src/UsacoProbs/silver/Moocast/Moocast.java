@@ -6,16 +6,6 @@ import java.util.Scanner;
 
 public class Moocast {
 
-    static class Cow {
-        int x, y, distance;
-
-        public Cow(int x, int y, int distance) {
-            this.x = x;
-            this.y = y;
-            this.distance = distance;
-        }
-    }
-
     static ArrayList<Cow> cows;
 
     public static void main(String[] args) throws IOException {
@@ -48,5 +38,15 @@ public class Moocast {
             }
         }
         return neighbors.size();
+    }
+
+    static class Cow {
+        int x, y, distance;
+
+        public Cow(int x, int y, int distance) {
+            this.x = x;
+            this.y = y;
+            this.distance = distance;
+        }
     }
 }
