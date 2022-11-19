@@ -15,12 +15,12 @@ public class lonelyPhoto {
         int i = 0;
         while (i < nCows) {
 
-            int right = nCows-(i+1);
-            if (right >= 1){
+            int right = nCows - (i + 1);
+            if (right >= 1) {
                 for (int j = 2; j <= right; j++) {
-                    int h = (int) str.substring(i, i + j+1).chars().filter(f -> f == 'H').count();
-                    int g = (int) str.substring(i, i + j+1).chars().filter(f -> f == 'G').count();
-                    if (g== 1 || h ==1) {
+                    int h = (int) str.substring(i, i + j + 1).chars().filter(f -> f == 'H').count();
+                    int g = (int) str.substring(i, i + j + 1).chars().filter(f -> f == 'G').count();
+                    if (g == 1 || h == 1) {
                         count++;
                     }
                 }
