@@ -27,17 +27,13 @@ public class Lifeguards {
             for (int j : lifeguards.keySet()) {
                 if (j != i) {
                     for (int k = j; k < lifeguards.get(j); k++) {
-                        if (time[k] == 0) {
-                            numLifeguard++;
-                        }
+                        if (time[k] == 0) numLifeguard++;
                         time[k] = 1;
                     }
                 }
             }
 
-            if (numLifeguard > max) {
-                max = numLifeguard;
-            }
+            if (numLifeguard > max) max = numLifeguard;
         }
 
         pw.println(max);
