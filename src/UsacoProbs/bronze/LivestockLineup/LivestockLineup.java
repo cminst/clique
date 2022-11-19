@@ -25,9 +25,7 @@ public class LivestockLineup {
         requirements[1] = new ArrayList<>();
         for (int i = 0; i < nDirections; i++) {
             requirements[0].add(r.next());
-            for (int j = 0; j < 4; j++) {
-                r.next();
-            }
+            for (int j = 0; j < 4; j++) r.next();
             requirements[1].add(r.next());
         }
 
@@ -39,9 +37,7 @@ public class LivestockLineup {
     private static boolean check(ArrayList<String> arr) {
         for (int i = 0; i < nDirections; i++) {
             int dist = abs(arr.indexOf(requirements[0].get(i)) - arr.indexOf(requirements[1].get(i)));
-            if (dist != 1) {
-                return false;
-            }
+            if (dist != 1) return false;
         }
         return true;
     }
