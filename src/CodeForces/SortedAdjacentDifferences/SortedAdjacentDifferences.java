@@ -1,6 +1,8 @@
 package CodeForces.SortedAdjacentDifferences;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Scanner;
 
 public class SortedAdjacentDifferences {
 
@@ -16,16 +18,12 @@ public class SortedAdjacentDifferences {
             }
             Collections.sort(integers);
             var index = 0;
-            var count = integers.size()-1;
+            var count = integers.size() - 1;
             while (count != 0) {
                 result.add(0, integers.get(index));
-                index+= count;
-                if (count>0) {
-                    count = count - 1;
-                }
-                else {
-                    count = count + 1;
-                }
+                index += count;
+                if (count > 0) count = count - 1;
+                else count = count + 1;
                 count *= -1;
             }
             result.add(0, integers.get(index));
