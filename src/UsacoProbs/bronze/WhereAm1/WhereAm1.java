@@ -26,17 +26,13 @@ public class WhereAm1 {
                 int first = 0;
                 while (first <= str.length() - s.length()) {
                     int second = first + s.length();
-                    if (str.substring(first, second).equals(s)) {
-                        count++;
-                    }
+                    if (str.substring(first, second).equals(s)) count++;
                     first++;
                 }
 
                 notDuplicates++;
                 if (count == 1) {
-                    if (notDuplicates > max) {
-                        max = notDuplicates;
-                    }
+                    if (notDuplicates > max) max = notDuplicates;
                     notDuplicates = 0;
                     break;
                 }
