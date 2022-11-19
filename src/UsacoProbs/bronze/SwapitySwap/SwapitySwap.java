@@ -33,9 +33,7 @@ public class SwapitySwap {
         var nCows = r.nextInt();
         var kTimes = r.nextInt();
 
-        for (var i = 0; i < nCows; i++) {
-            cows.add(i + 1);
-        }
+        for (var i = 0; i < nCows; i++) cows.add(i + 1);
 
         ArrayList<Integer> originalCows = (ArrayList<Integer>) cows.clone();
 
@@ -52,13 +50,9 @@ public class SwapitySwap {
 
         var m = kTimes % count;
 
-        for (int i = 0; i < m; i++) {
-            reverseAB();
-        }
+        for (int i = 0; i < m; i++) reverseAB();
 
-        for (var cow : cows) {
-            pw.println(cow);
-        }
+        for (var cow : cows) pw.println(cow);
         pw.close();
     }
 }
