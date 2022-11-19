@@ -1,6 +1,7 @@
 package UsacoProbs.BronzeExam.january;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Scanner;
 
 public class prob1 {
@@ -18,47 +19,34 @@ public class prob1 {
             String n = r.next();
             guess[i] = n;
         }
-
-        int green = 0;
-        int yellow = 0;
-        for (int i = 0; i < answer.length; i++) {
-            for (int j = 0; j < answer.length; j++) {
-                if (answer[i].charAt(j) == guess[i].charAt(j)) {
-                    green++;
-                    StringBuilder str = new StringBuilder(guess[i]);
-                    str.setCharAt(j, '1');
-                    guess[i] = str.toString();
-                    str = new StringBuilder(answer[i]);
-                    str.setCharAt(j, '1');
-                    answer[i] = str.toString();
+        var hashmap = new HashMap<Character, Integer>();
+        for (int i = 0; i < 3; i++) {
+            for (char j : answer[i].toCharArray()) {
+                if(!hashmap.containsKey(j)) {
+                    hashmap.put(j,1);
+                }
+                else {
+                    hashmap.put(j, hashmap.get(j)+1);
                 }
             }
         }
 
-        for (int i = 0; i < answer.length; i++) {
-            for (int j = 0; j < answer.length; j++) {
-                if (answer[i].charAt(j) != guess[i].charAt(j) && (guess[0].contains(Character.toString(answer[i].charAt(j))) || guess[1].contains(Character.toString(answer[i].charAt(j))) || guess[2].contains(Character.toString(answer[i].charAt(j))))) {
+        int green = 0;
+        int yellow = 0;
+
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                if(answer[i].charAt(j)==guess[i].charAt(j)) {
+                    green++;
+                    hashmap.put(answer[i].charAt(j), hashmap.get(answer[i].charAt(j))-1);
+                }
+            }
+        }
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                if(answer[i].charAt(j)!=guess[i].charAt(j) && hashmap.get(guess[i].charAt(j))!=null && hashmap.get(guess[i].charAt(j))!=0) {
                     yellow++;
-                    var inum = 0;
-                    if (guess[1].contains(Character.toString(answer[i].charAt(j)))) {
-                        inum = 1;
-                    }
-                    if (guess[2].contains(Character.toString(answer[i].charAt(j)))) {
-                        inum = 2;
-                    }
-                    var jnum = 0;
-                    if (guess[inum].charAt(1) == answer[i].charAt(j)) {
-                        jnum = 1;
-                    }
-                    if (guess[inum].charAt(2) == answer[i].charAt(j)) {
-                        jnum = 2;
-                    }
-                    StringBuilder str = new StringBuilder(guess[inum]);
-                    str.setCharAt(jnum, '1');
-                    guess[inum] = str.toString();
-                    str = new StringBuilder(answer[i]);
-                    str.setCharAt(j, '1');
-                    answer[i] = str.toString();
+                    hashmap.put(guess[i].charAt(j), hashmap.get(guess[i].charAt(j))-1);
                 }
             }
         }
