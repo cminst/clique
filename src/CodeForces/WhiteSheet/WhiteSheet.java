@@ -1,7 +1,9 @@
 package CodeForces.WhiteSheet;
 
 import java.awt.*;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Scanner;
+import java.util.Vector;
 
 public class WhiteSheet {
 
@@ -24,15 +26,9 @@ public class WhiteSheet {
         boolean containsAll1 = true;
         boolean containsAll2 = true;
         for (Point i : whitePoints) {
-            if (!containsAll1 && !containsAll2) {
-                break;
-            }
-            if (!containsPoint(black1, i)) {
-                containsAll1 = false;
-            }
-            if (!containsPoint(black2, i)) {
-                containsAll2 = false;
-            }
+            if (!containsAll1 && !containsAll2) break;
+            if (!containsPoint(black1, i)) containsAll1 = false;
+            if (!containsPoint(black2, i)) containsAll2 = false;
         }
         if (containsAll1 || containsAll2) {
             System.out.println("NO");
@@ -45,7 +41,7 @@ public class WhiteSheet {
             HashSet<Corner> uniqueCorners = new HashSet<>(black1Corners);
             uniqueCorners.addAll(black2Corners);
             if (uniqueCorners.size() == 4) {
-                if (checkOverlap(black1, black2)){
+                if (checkOverlap(black1, black2)) {
                     System.out.println("NO");
                     return;
                 }
@@ -62,15 +58,9 @@ public class WhiteSheet {
 
         if ((white.x <= (black.x + black.width) && white.x >= black.x) && (white.y >= black.y && white.y <= black.y + black.height))
             count++;
-        if (containsPoint(black, lowerRight)) {
-            count++;
-        }
-        if (containsPoint(black, upperRight)) {
-            count++;
-        }
-        if (containsPoint(black, upperLeft)) {
-            count++;
-        }
+        if (containsPoint(black, lowerRight)) count++;
+        if (containsPoint(black, upperRight)) count++;
+        if (containsPoint(black, upperLeft)) count++;
 
         return count;
     }
@@ -79,20 +69,20 @@ public class WhiteSheet {
         Vector<Corner> corners = new Vector<>();
         int lowerXWhite = white.x;
         int lowerYWhite = white.y;
-        int higherXWhite = white.x+ white.width;
-        int higherYWhite = white.y+white.height;
-            if (containsPoint(black, new Point(higherXWhite, higherYWhite))) {
-                corners.add(Corner.UPPER_RIGHT);
-            }
-            if (containsPoint(black, new Point(higherXWhite, lowerYWhite))) {
-                corners.add(Corner.LOWER_RIGHT);
-            }
-            if (containsPoint(black, new Point(lowerXWhite, higherYWhite))) {
-                corners.add(Corner.UPPER_LEFT);
-            }
-            if (containsPoint(black, new Point(lowerXWhite, lowerYWhite))) {
-                corners.add(Corner.LOWER_LEFT);
-            }
+        int higherXWhite = white.x + white.width;
+        int higherYWhite = white.y + white.height;
+        if (containsPoint(black, new Point(higherXWhite, higherYWhite))) {
+            corners.add(Corner.UPPER_RIGHT);
+        }
+        if (containsPoint(black, new Point(higherXWhite, lowerYWhite))) {
+            corners.add(Corner.LOWER_RIGHT);
+        }
+        if (containsPoint(black, new Point(lowerXWhite, higherYWhite))) {
+            corners.add(Corner.UPPER_LEFT);
+        }
+        if (containsPoint(black, new Point(lowerXWhite, lowerYWhite))) {
+            corners.add(Corner.LOWER_LEFT);
+        }
         return corners;
     }
 
