@@ -26,12 +26,12 @@ public class prob2 {
             }
         }
 
-//        System.out.println(a);
-//        var cow = a.get(a.size()-1);
-//        System.out.println(cow);
-//        a.remove(cow);
-//        a.add(0, cow);
-//        System.out.println(a);
+        //        System.out.println(a);
+        //        var cow = a.get(a.size()-1);
+        //        System.out.println(cow);
+        //        a.remove(cow);
+        //        a.add(0, cow);
+        //        System.out.println(a);
 
         if (same) {
             System.out.println(0);
@@ -48,9 +48,8 @@ public class prob2 {
                 }
                 a.add(b.indexOf(a.get(cowIndex)), a.get(cowIndex));
                 if (farthest < 0) {
-                    a.remove(cowIndex+1);
-                }
-                else {
+                    a.remove(cowIndex + 1);
+                } else {
                     a.remove(cowIndex);
                 }
                 changes++;
