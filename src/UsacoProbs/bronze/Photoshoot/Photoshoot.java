@@ -13,9 +13,7 @@ public class Photoshoot {
         int[] a = new int[nCows];
         int[] b = new int[nCows - 1];
 
-        for (int i = 0; i < nCows - 1; i++) {
-            b[i] = r.nextInt();
-        }
+        for (int i = 0; i < nCows - 1; i++) b[i] = r.nextInt();
         for (int i = 1; i < b[0]; i++) {
 
             int count = i;
@@ -32,15 +30,11 @@ public class Photoshoot {
                     break;
                 }
             }
-            if (a[0] != 0) {
-                break;
-            }
+            if (a[0] != 0) break;
         }
 
         StringBuilder s = new StringBuilder();
-        for (int j : a) {
-            s.append(j).append(" ");
-        }
+        for (int j : a) s.append(j).append(" ");
         s.deleteCharAt(s.length() - 1);
         pw.println(s);
         pw.close();
