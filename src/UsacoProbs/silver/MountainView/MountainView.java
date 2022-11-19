@@ -12,7 +12,8 @@ public class MountainView {
         var nMountains = r.nextInt();
         var mountainPeaks = new Long[nMountains][6];
         for (int i = 0; i < nMountains; i++) {
-            var x = 0L; var y = 0L;
+            var x = 0L;
+            var y = 0L;
             x = r.nextInt();
             y = r.nextInt();
             mountainPeaks[i][0] = x;
@@ -26,7 +27,7 @@ public class MountainView {
         for (int first = 0; first < nMountains; first++) {
             for (int second = 0; second < nMountains; second++) {
                 if (first != second) {
-                    if (mountainPeaks[second][4]-mountainPeaks[first][0] >= mountainPeaks[first][1] && mountainPeaks[first][0]-mountainPeaks[second][2]>= mountainPeaks[first][1]) {
+                    if (mountainPeaks[second][4] - mountainPeaks[first][0] >= mountainPeaks[first][1] && mountainPeaks[first][0] - mountainPeaks[second][2] >= mountainPeaks[first][1]) {
                         mountainsSeen--;
                         break;
                     }
