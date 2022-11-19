@@ -6,22 +6,6 @@ import java.util.Scanner;
 
 public class MilkMeasurement {
 
-    static class Log implements Comparable<Log> {
-        public int log;
-        public String name;
-        public int changedOutput;
-
-        public Log(int log, String name, int changedOutput) {
-            this.log = log;
-            this.name = name;
-            this.changedOutput = changedOutput;
-        }
-
-        public int compareTo(Log o) {
-            return Integer.compare(this.log, o.log);
-        }
-    }
-
     public static void main(String[] args) throws IOException {
         Scanner r = new Scanner(new FileReader("measurement.in"));
         PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter("measurement.out")));
@@ -39,13 +23,10 @@ public class MilkMeasurement {
         int count = 0;
 
         for (Log log : logs) {
-            if (log.name.equals("Bessie")) {
-                BessieMilk += log.changedOutput;
-            } else if (log.name.equals("Elsie")) {
-                ElsieMilk += log.changedOutput;
-            } else {
-                MildredMilk += log.changedOutput;
-            }
+            if (log.name.equals("Bessie")) BessieMilk += log.changedOutput;
+            else if (log.name.equals("Elsie")) ElsieMilk += log.changedOutput;
+            else MildredMilk += log.changedOutput;
+
             boolean[] leaderboard = new boolean[]{false, false, false};
             int belsiemilk = Math.max(BessieMilk, ElsieMilk);
             int maxMilk = Math.max(belsiemilk, MildredMilk);
@@ -59,5 +40,21 @@ public class MilkMeasurement {
         }
         pw.println(count);
         pw.close();
+    }
+
+    static class Log implements Comparable<Log> {
+        public int log;
+        public String name;
+        public int changedOutput;
+
+        public Log(int log, String name, int changedOutput) {
+            this.log = log;
+            this.name = name;
+            this.changedOutput = changedOutput;
+        }
+
+        public int compareTo(Log o) {
+            return Integer.compare(this.log, o.log);
+        }
     }
 }
