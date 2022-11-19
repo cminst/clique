@@ -13,17 +13,13 @@ public class LemonadeLine {
 
         var nCows = r.nextInt();
         var cows = new ArrayList<Integer>();
-        for (int i = 0; i < nCows; i++) {
-            cows.add(r.nextInt());
-        }
+        for (int i = 0; i < nCows; i++) cows.add(r.nextInt());
         Collections.sort(cows);
         Collections.reverse(cows);
 
         var count = 0;
         for (Integer cow : cows) {
-            if (count <= cow) {
-                count++;
-            }
+            if (count <= cow) count++;
         }
         pw.println(count);
         pw.close();
