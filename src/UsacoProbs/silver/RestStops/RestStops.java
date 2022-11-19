@@ -14,7 +14,7 @@ public class RestStops {
         var johnSpeed = r.nextInt();
         var bessieSpeed = r.nextInt();
 
-        var maxs = new boolean[nRestStops];
+        var maxes = new boolean[nRestStops];
 
         var restStops = new int[nRestStops];
         var tastiness = new int[nRestStops];
@@ -24,9 +24,9 @@ public class RestStops {
         }
 
         var max = 0;
-        for (int i = nRestStops-1; i >= 0; i--) {
+        for (int i = nRestStops - 1; i >= 0; i--) {
             if (tastiness[i] > max) {
-                maxs[i] = true;
+                maxes[i] = true;
                 max = tastiness[i];
             }
         }
@@ -36,10 +36,10 @@ public class RestStops {
         var bessieTheCow = 0L;
         var lastRestStop = 0;
         for (int i = 0; i < nRestStops; i++) {
-            if (maxs[i]) {
-                johnTheFarmer += (long) (restStops[i] - lastRestStop) *johnSpeed;
-                bessieTheCow += (long) (restStops[i] - lastRestStop) *bessieSpeed;
-                maxTastinessUnits += (johnTheFarmer - bessieTheCow)*(tastiness[i]);
+            if (maxes[i]) {
+                johnTheFarmer += (long) (restStops[i] - lastRestStop) * johnSpeed;
+                bessieTheCow += (long) (restStops[i] - lastRestStop) * bessieSpeed;
+                maxTastinessUnits += (johnTheFarmer - bessieTheCow) * (tastiness[i]);
                 bessieTheCow = johnTheFarmer;
                 lastRestStop = restStops[i];
             }
