@@ -24,7 +24,6 @@ public class clique {
         }
 
         PriorityQueue<Pair> pq = new PriorityQueue<>();
-//        ArrayList<Integer> pqTest = new ArrayList<>();
         int[] degrees = new int[n+1];
 
         for (int i = 1; i < n+1; i++) {
@@ -33,20 +32,18 @@ public class clique {
         }
 
         Stack<Pair> stack = new Stack<>();
-//        ArrayList<Integer> stackTest = new ArrayList<>();
         while(!pq.isEmpty()) {
             Pair minDegreeNode = pq.poll();
+            if (degrees[minDegreeNode.node]!=minDegreeNode.degree) continue;
             for (int connectedNode : map.get(minDegreeNode.node)) {
-                if (!stack.contains(new Pair(connectedNode, degrees[connectedNode]))) {
-                    pq.remove(new Pair(connectedNode, degrees[connectedNode]));
+                if (degrees[connectedNode]!=0) {
                     degrees[connectedNode] -= 1;
                     pq.add(new Pair(connectedNode, degrees[connectedNode]));
                 }
             }
+            degrees[minDegreeNode.node] = 0;
             stack.add(minDegreeNode);
-//            stackTest.add(minDegreeNode.node);
         }
-//        System.out.println(stackTest);
         DSU dsu = new DSU();
         int sMax = 0;
         int uStar = 0;
@@ -58,7 +55,6 @@ public class clique {
                 if (readded[connectedNode]) {
                     int s = dsu.union(minDegreeNode.node, connectedNode);
                     if (s!=0) {
-//                        System.out.println(s+" "+minDegreeNode.node);
                         int newScore = s*minDegreeNode.degree;
                         if (newScore>sMax) {
                             sMax = newScore;
@@ -71,36 +67,6 @@ public class clique {
         }
 
         System.out.println(sMax + ", " + uStar);
-    }
-
-    static class Pair implements Comparable<Pair> {
-        public int node;
-        public int degree;
-
-        public Pair(int node, int degree) {
-            this.node = node;
-            this.degree = degree;
-        }
-
-        public int compareTo(Pair o) {
-            if (this.degree == o.degree) {
-                return Integer.compare(this.node, o.node);
-            }
-            return Integer.compare(this.degree, o.degree);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Pair pair = (Pair) o;
-            return node == pair.node && degree == pair.degree;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(node, degree);
-        }
     }
 
     static class DSU {
@@ -133,6 +99,36 @@ public class clique {
             parents[pn2] = pn1;
             size[pn1] += size[pn2];
             return size[pn1];
+        }
+    }
+
+    static class Pair implements Comparable<Pair> {
+        public int node;
+        public int degree;
+
+        public Pair(int node, int degree) {
+            this.node = node;
+            this.degree = degree;
+        }
+
+        public int compareTo(Pair o) {
+            if (this.degree == o.degree) {
+                return Integer.compare(this.node, o.node);
+            }
+            return Integer.compare(this.degree, o.degree);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Pair pair = (Pair) o;
+            return node == pair.node && degree == pair.degree;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(node, degree);
         }
     }
 }
