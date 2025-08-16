@@ -36,13 +36,14 @@ public class clique {
 //        ArrayList<Integer> stackTest = new ArrayList<>();
         while(!pq.isEmpty()) {
             Pair minDegreeNode = pq.poll();
+            if (degrees[minDegreeNode.node]!=minDegreeNode.degree) continue;
             for (int connectedNode : map.get(minDegreeNode.node)) {
-                if (!stack.contains(new Pair(connectedNode, degrees[connectedNode]))) {
-                    pq.remove(new Pair(connectedNode, degrees[connectedNode]));
+                if (degrees[connectedNode]!=0) {
                     degrees[connectedNode] -= 1;
                     pq.add(new Pair(connectedNode, degrees[connectedNode]));
                 }
             }
+            degrees[minDegreeNode.node] = 0;
             stack.add(minDegreeNode);
 //            stackTest.add(minDegreeNode.node);
         }
