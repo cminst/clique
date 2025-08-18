@@ -21,25 +21,33 @@ public class clique2 {
         Stack<Pair> stack = new Stack<>();
 
         for (int i = 0; i < n; i++) {
-            map.put(i+1, new ArrayList<>());
+            map.put(i + 1, new ArrayList<>());
         }
-        for (int i = 0; i < m; i++) {
+
+        for (int i = 0; i < m; i++) { // Read in connections
             int node1 = r.nextInt();
             int node2 = r.nextInt();
             map.get(node1).add(node2);
             map.get(node2).add(node1);
         }
 
-        for (int i = 1; i < n+1; i++) {
+        for (int i = 1; i < n + 1; i++) {
             pq.add(new Pair(i, map.get(i).size()));
             degrees[i] = map.get(i).size();
         }
 
+        // Remove nodes one by one
+
         while(!pq.isEmpty()) {
             Pair minDegreeNode = pq.poll();
-            if (degrees[minDegreeNode.node]!=minDegreeNode.degree) continue;
+
+            // Ignore outdated nodes
+            if (degrees[minDegreeNode.node] != minDegreeNode.degree) continue;
+
             for (int connectedNode : map.get(minDegreeNode.node)) {
-                if (degrees[connectedNode]!=0) {
+                if (degrees[connectedNode] > 0) {
+                    // Remove the current minDegreeNode and update neighbor's nodes
+
                     degrees[connectedNode] -= 1;
                     pq.add(new Pair(connectedNode, degrees[connectedNode]));
                 }
@@ -47,55 +55,81 @@ public class clique2 {
             degrees[minDegreeNode.node] = 0;
             stack.add(minDegreeNode);
         }
+
+        // Add back nodes
+
         DSU dsu = new DSU();
         double sMax = 0;
         int uStar = 0;
-        long[] currLaplacian = new long[n+1];
 
-        boolean[] readded = new boolean[n+1];
+        long[] currLaplacian = new long[n+1]; // Stores Laplacian values for each component
+        boolean[] readded = new boolean[n+1]; // Tracks which nodes have been added back
 
+        // Process nodes in reverse order from stack
         while (!stack.isEmpty()) {
             Pair u = stack.pop();
+
+            // Find all neighbors that have already been processed (added back to graph)
             ArrayList<Integer> uN = new ArrayList<>();
             for (int v : map.get(u.node)) {
-                if (readded[v]) uN.add(v);
+                if (readded[v]) {
+                    uN.add(v);
+                }
             }
 
+            // Collect all unique component roots from processed neighbors
             HashSet<Integer> roots = new HashSet<>();
             for (int v : uN) {
                 int rv = dsu.find(v);
                 roots.add(rv);
+
+                // Update Laplacian based on degree differences within the component
                 int dv = degrees[v];
                 for (int x : map.get(v)) {
                     if (readded[x]) {
                         int dx = degrees[x];
-                        currLaplacian[rv] += 2L * (dv-dx)+1L;
+                        currLaplacian[rv] += 2L * (dv - dx) + 1L;
                     }
                 }
                 degrees[v] += 1;
             }
 
+            // Update degree of current node to number of processed neighbors so far
             int du = uN.size();
             degrees[u.node] = du;
 
+            // Calculate Laplacian contribution from new edges (based on degree differences)
             long newEdge = 0;
             for (int v : uN) {
                 int dv = degrees[v];
-                newEdge += ((long) (du-dv))*((long) (du-dv));
+                long degreeDiff = (long) (du - dv);
+                newEdge += degreeDiff * degreeDiff;
             }
 
+            // Sum up Laplacian values from all neighbor components
             long vLaplacian = 0;
+            for (int rv : roots) {
+                vLaplacian += currLaplacian[rv];
+            }
+
+            // Merge current node with all its processed neighbors into one component
             int s = 0;
-            for (int rv : roots) vLaplacian += currLaplacian[rv];
-            for (int v : uN) s = dsu.union(u.node, v);
-            currLaplacian[dsu.find(u.node)] += vLaplacian + newEdge;
+            for (int v : uN) {
+                s = dsu.union(u.node, v);
+            }
+
+            // Update Laplacian for the merged component
+            int mergedComponentRoot = dsu.find(u.node);
+            currLaplacian[mergedComponentRoot] += vLaplacian + newEdge;
 
             readded[u.node] = true;
 
-            double sL = s / (currLaplacian[dsu.find(u.node)] + epsilon);
+            // Calculate density score
+            double sL = s / (currLaplacian[mergedComponentRoot] + epsilon);
+
             if (sL > sMax) {
                 sMax = sL;
-                uStar = dsu.find(u.node);
+                uStar = mergedComponentRoot;
             }
         }
 
