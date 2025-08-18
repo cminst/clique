@@ -4,15 +4,21 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
 
-public class clique {
+public class clique1 {
     public static int n;
     public static void main(String[] args) throws IOException {
-        Scanner r = new Scanner(new FileReader("src/UsacoProbs/input.txt"));
+        Scanner r = new Scanner(new FileReader(args[0]));
 
         n = r.nextInt();
         int m = r.nextInt();
 
+        long start = System.nanoTime();
+
         TreeMap<Integer, ArrayList<Integer>> map = new TreeMap<>();
+        PriorityQueue<Pair> pq = new PriorityQueue<>();
+        int[] degrees = new int[n+1];
+        Stack<Pair> stack = new Stack<>();
+
         for (int i = 0; i < n; i++) {
             map.put(i+1, new ArrayList<>());
         }
@@ -23,15 +29,11 @@ public class clique {
             map.get(node2).add(node1);
         }
 
-        PriorityQueue<Pair> pq = new PriorityQueue<>();
-        int[] degrees = new int[n+1];
-
         for (int i = 1; i < n+1; i++) {
             pq.add(new Pair(i, map.get(i).size()));
             degrees[i] = map.get(i).size();
         }
 
-        Stack<Pair> stack = new Stack<>();
         while(!pq.isEmpty()) {
             Pair minDegreeNode = pq.poll();
             if (degrees[minDegreeNode.node]!=minDegreeNode.degree) continue;
@@ -58,7 +60,7 @@ public class clique {
                         int newScore = s*minDegreeNode.degree;
                         if (newScore>sMax) {
                             sMax = newScore;
-                            uStar = minDegreeNode.node;
+                            uStar = dsu.find(minDegreeNode.node);
                         }
                     }
                 }
@@ -67,6 +69,10 @@ public class clique {
         }
 
         System.out.println(sMax + ", " + uStar);
+
+        long end = System.nanoTime();
+        double elapsedMs = (end - start) / 1_000_000.0;
+        System.out.printf("Runtime: %.3f ms%n", elapsedMs);
     }
 
     static class DSU {
