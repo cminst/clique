@@ -6,10 +6,9 @@ import java.util.*;
 public class clique2_nosquared {
     static int n, m;
 
-    public static double main(String[] args) throws Exception {
+    public static void main(String[] args) throws Exception {
         if (args.length < 2) {
             System.err.println("Usage: java clique2_nosquared <epsilon> <inputfile>");
-            return 0;
         }
         final double EPS = Double.parseDouble(args[0]);
 
@@ -41,7 +40,6 @@ public class clique2_nosquared {
 
         System.out.printf(Locale.US, "%.6f, %d%n", res.bestSL, res.bestRoot);
         System.out.printf(Locale.US, "Runtime: %.3f ms%n", (t1 - t0) / 1_000_000.0);
-        return (t1 - t0) / 1_000_000.0;
     }
 
     static Result runLaplacianRMC(List<Integer>[] adj, double EPS) {
