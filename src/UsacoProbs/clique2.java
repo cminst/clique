@@ -6,7 +6,7 @@ import java.util.*;
 
 public class clique2 {
     public static int n;
-    public static void main(String[] args) throws IOException {
+    public static double main(String[] args) throws IOException {
         Scanner r = new Scanner(new FileReader(args[1]));
         double epsilon = Double.parseDouble(args[0]);
 
@@ -104,6 +104,7 @@ public class clique2 {
         long end = System.nanoTime();
         double elapsedMs = (end - start) / 1_000_000.0;
         System.out.printf("Runtime: %.3f ms%n", elapsedMs);
+        return elapsedMs;
     }
 
     static class DSU {
