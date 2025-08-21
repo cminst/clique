@@ -8,7 +8,7 @@ public class clique2_nosquared {
 
     public static void main(String[] args) throws Exception {
         if (args.length < 2) {
-            System.err.println("Usage: java clique2_nosquared <epsilon> <inputfile>");
+            System.err.println("Usage: java clique2_fixb <epsilon> <inputfile>");
         }
         final double EPS = Double.parseDouble(args[0]);
 
@@ -28,7 +28,6 @@ public class clique2_nosquared {
         for (int i = 1; i <= n; i++) adj[i] = new ArrayList<>();
         for (int i = 0; i < m; i++) {
             int a = r.nextInt(), b = r.nextInt();
-            if (a == b) continue; // ignore self-loops if present
             adj[a].add(b);
             adj[b].add(a);
         }
@@ -43,149 +42,103 @@ public class clique2_nosquared {
     }
 
     static Result runLaplacianRMC(List<Integer>[] adj, double EPS) {
-        // -------------------
         // Phase 1: peel by nondecreasing degree with stale-check heap
-        // Also record removal rank to create a κ-orientation later.
-        // -------------------
-        int[] degWork = new int[n + 1];
+        int[] deg = new int[n + 1];
         PriorityQueue<Pair> pq = new PriorityQueue<>();
         for (int i = 1; i <= n; i++) {
-            degWork[i] = adj[i].size();
-            pq.add(new Pair(i, degWork[i]));
+            deg[i] = adj[i].size();
+            pq.add(new Pair(i, deg[i]));
         }
-
-        Deque<Integer> stack = new ArrayDeque<>(n);
-        int[] rank = new int[n + 1]; // removal order index (smaller => removed earlier)
-        int remIdx = 0;
-
+        Deque<Pair> stack = new ArrayDeque<>(n);
         while (!pq.isEmpty()) {
             Pair p = pq.poll();
-            if (p.degree != degWork[p.node]) continue; // stale
-            int u = p.node;
-            stack.push(u);
-            rank[u] = remIdx++;
-
-            for (int v : adj[u]) {
-                if (degWork[v] > 0) {
-                    degWork[v]--;
-                    pq.add(new Pair(v, degWork[v]));
+            if (p.degree != deg[p.node]) continue; // stale
+            stack.push(p);
+            for (int v : adj[p.node]) {
+                if (deg[v] > 0) {
+                    deg[v]--;
+                    pq.add(new Pair(v, deg[v]));
                 }
             }
-            degWork[u] = 0;
+            deg[p.node] = 0;
         }
 
-        // -------------------
-        // Build κ-orientation from the peel order:
-        // direct every {u,v} from the earlier-removed endpoint to the later-removed.
-        // Out-degree is bounded by graph degeneracy κ.
-        // -------------------
-        @SuppressWarnings("unchecked")
-        List<Integer>[] out = new ArrayList[n + 1];
-        for (int i = 1; i <= n; i++) out[i] = new ArrayList<>();
+        // --- Phase 2: reverse reconstruction with batched Laplacian update ---
 
-        for (int u = 1; u <= n; u++) {
-            for (int v : adj[u]) if (u < v) { // process each undirected edge once
-                if (rank[u] < rank[v]) out[u].add(v);
-                else out[v].add(u);
-            }
-        }
-
-        // -------------------
-        // Phase 2: reverse reconstruction with exact Laplacian energy,
-        // using orientation to keep updates O(m κ).
-        // -------------------
         DSU dsu = new DSU(n);
         boolean[] inGraph = new boolean[n + 1];
 
-        int[] d = new int[n + 1];          // internal degree in the evolving component
-        long[] sumIn = new long[n + 1];    // Σ d[p] for p that are incoming to node (p -> u) and in same component
-        long[] sumOutProc = new long[n + 1]; // Σ d[x] over out-neighbors x that are ALREADY connected to u
+        // Internal degree inside the evolving graph
+        int[] d = new int[n + 1];
 
-        long[] compEnergy = new long[n + 1]; // E[root] for each DSU root
+        // Component energy E[root]
+        long[] compEnergy = new long[n + 1];
 
+        // Stamps for distinct-root accumulation and for marking A
         int[] rootSeenStamp = new int[n + 1];
         int stamp = 1;
+
+        int[] inAStamp = new int[n + 1];
+        int aStamp = 1;
 
         double bestSL = 0.0;
         int bestRoot = 0;
 
         while (!stack.isEmpty()) {
-            int u = stack.pop();
-            inGraph[u] = true;
+            Pair item = stack.pop();
+            int u = item.node;
 
-            // Neighbors already in the graph are exactly out[u]
-            List<Integer> nbrs = out[u];
+            // Collect already-in neighbors A
+            List<Integer> A = new ArrayList<>();
+            for (int v : adj[u]) if (inGraph[v]) A.add(v);
 
-            // Sum energies from distinct neighbor components BEFORE union
+            // Sum energies from distinct neighbor roots BEFORE union
             long mergedEnergy = 0L;
-            if (!nbrs.isEmpty()) {
-                int s = stamp++;
-                for (int v : nbrs) {
-                    if (!inGraph[v]) continue; // defensive; should always be true
-                    int rv = dsu.find(v);
-                    if (rootSeenStamp[rv] != s) {
-                        rootSeenStamp[rv] = s;
-                        mergedEnergy += compEnergy[rv];
-                    }
+            stamp++;
+            for (int v : A) {
+                int rv = dsu.find(v);
+                if (rootSeenStamp[rv] != stamp) {
+                    rootSeenStamp[rv] = stamp;
+                    mergedEnergy += compEnergy[rv];
                 }
             }
 
-            // Union u with all processed neighbors
+            // Mark A for O(1) membership tests
+            aStamp++;
+            for (int v : A) inAStamp[v] = aStamp;
+
+            // Compute delta on old edges touching A, but only within current in-graph
+            long deltaOld = 0L;
+            for (int w : A) {
+                for (int x : adj[w]) {
+                    if (!inGraph[x]) continue;           // not in current graph
+                    if (inAStamp[x] == aStamp) continue; // x also in A, change = 0
+                    deltaOld += 2L * ((long) d[w] - (long) d[x]) + 1L;
+                }
+            }
+
+            // Contribution from the |A| new edges (u, w) with w in A
+            int degU = A.size();
+            long deltaNew = 0L;
+            for (int w : A) {
+                long t = (long) degU - ((long) d[w] + 1L);
+                deltaNew += t * t;
+            }
+
+            // Create u and union with all neighbors in A
             dsu.makeIfNeeded(u);
             int root = u;
-            for (int v : nbrs) {
-                if (!inGraph[v]) continue;
-                root = dsu.union(root, v);
-            }
-            root = dsu.find(root);
-            compEnergy[root] = mergedEnergy;
+            for (int v : A) root = dsu.union(root, v);
 
-            // Insert edges (u, v) one by one, updating energy exactly.
-            for (int v : nbrs) {
-                if (!inGraph[v]) continue; // defensive
-                // Degrees before the new edge
-                long du = d[u];
-                long dv = d[v];
+            // Activate u and update degrees
+            inGraph[u] = true;
+            d[u] = degU;
+            for (int w : A) d[w]++;
 
-                // Current neighbor-degree sums (only already-connected neighbors count)
-                long sumNbr_u = sumIn[u] + sumOutProc[u];
-                long sumNbr_v = sumIn[v] + sumOutProc[v];
+            // The new component's energy
+            compEnergy[root] = mergedEnergy + deltaOld + deltaNew;
 
-                // 1) New edge term
-                long delta = (du - dv) * (du - dv);
-
-                // 2) Bump for edges incident to u (excluding v, since not connected yet)
-                //    Σ_{x in N(u)} [2(du - d[x]) + 1]  where N(u) = already-connected internal neighbors
-                long deg_u = du;
-                delta += 2 * du * deg_u - 2 * sumNbr_u + deg_u;
-
-                // 3) Symmetric bump for v
-                long deg_v = dv;
-                delta += 2 * dv * deg_v - 2 * sumNbr_v + deg_v;
-
-                compEnergy[root] += delta;
-
-                // 4) Update per-node neighbor-degree trackers for the new adjacency
-                //    v becomes an out-neighbor that is "processed" for u,
-                //    and u becomes an in-neighbor for v.
-                sumOutProc[u] += dv;
-                sumIn[v] += du;
-
-                // 5) Now the degrees increase by 1
-                d[u] = (int) (du + 1);
-                d[v] = (int) (dv + 1);
-
-                // 6) Propagate the +1 only along out-edges, inside the current component
-                //    This accounts for every adjacent edge's degree change, exactly.
-                for (int w : out[u]) {
-                    if (inGraph[w] && dsu.find(w) == root) sumIn[w] += 1;
-                }
-                for (int w : out[v]) {
-                    if (inGraph[w] && dsu.find(w) == root) sumIn[w] += 1;
-                }
-            }
-
-            // Score the component containing u
+            // Score
             int compRoot = dsu.find(u);
             int compSize = dsu.size[compRoot];
             double sL = compSize / (compEnergy[compRoot] + EPS);
@@ -195,10 +148,10 @@ public class clique2_nosquared {
             }
         }
 
-        Result outRes = new Result();
-        outRes.bestSL = bestSL;
-        outRes.bestRoot = bestRoot;
-        return outRes;
+        Result out = new Result();
+        out.bestSL = bestSL;
+        out.bestRoot = bestRoot;
+        return out;
     }
 
     // ---------- Helpers ----------
