@@ -34,7 +34,7 @@ public class Table1Synthetic {
 
     // ---- Single Setting ----
 
-    static final double[] PINTRA_LIST = new double[]{0.010};
+    static final double[] PINTRA_LIST = new double[]{0.050};
     static final double[] PINTER_LIST = new double[]{3e-4};
     static final int TRIALS_PER_SETTING = 5;
 
@@ -360,7 +360,8 @@ public class Table1Synthetic {
     // Quasi-clique greedy: grow from top-degree seeds; accept nodes as long as density >= gamma
     static int[][] quasiCliqueTopK(Graph G, int K) {
         // pick gamma from a small grid; in synthetic setting, 0.6 is a reasonable default
-        double[] gammaGrid = new double[]{0.55, 0.60, 0.65};
+        double[] gammaGrid = new double[]{0.03, 0.04, 0.05, 0.06};
+        // double[] gammaGrid = new double[]{0.55, 0.60, 0.65};
         boolean[] used = new boolean[G.n];
         List<int[]> list = new ArrayList<>();
         // degree array
@@ -557,60 +558,83 @@ public class Table1Synthetic {
         return list.toArray();
     }
 
-    // Quasi-clique growth from a seed with a small gamma grid; disjoint with "used".
     static int[] greedyQuasiCliqueFromSeed(int[][] adj, int seed, boolean[] used, double[] gammaGrid) {
         int n = adj.length;
         boolean[] in = new boolean[n];
+        boolean[] cand = new boolean[n];
+        int[] degInS = new int[n];
 
-        int[] bestSet = new int[]{seed};
-        double bestScore = 1;
+        int[] bestSet = new int[]{};
+        int bestSize = 0;
 
         for (double gamma : gammaGrid) {
             Arrays.fill(in, false);
-            ArrayDeque<Integer> queue = new ArrayDeque<>();
-            IntList cur = new IntList();
-            cur.add(seed); in[seed] = true;
-            // candidate set = neighbors of current set
-            HashSet<Integer> cand = new HashSet<>();
-            for (int v : adj[seed]) if (!used[v]) cand.add(v);
+            Arrays.fill(cand, false);
+            Arrays.fill(degInS, 0);
 
-            boolean improved = true;
-            int curEdges = 0; // internal edges among cur
-            while (improved) {
-                improved = false;
-                int bestCand = -1;
-                int bestAddEdges = -1;
+            IntList S = new IntList();
+            in[seed] = true; S.add(seed);
 
-                for (int u : cand) {
-                    if (used[u] || in[u]) continue;
-                    int addEdges = 0;
-                    for (int v : adj[u]) if (in[v]) addEdges++;
-                    int newSize = cur.size() + 1;
-                    int newEdges = curEdges + addEdges;
-                    int need = (int) Math.ceil(gamma * newSize * (newSize - 1) / 2.0);
-                    if (newEdges >= need && addEdges > bestAddEdges) {
-                        bestAddEdges = addEdges;
-                        bestCand = u;
+            for (int v : adj[seed]) if (!used[v]) { cand[v] = true; degInS[v] = 1; }
+            degInS[seed] = 0;
+
+            while (true) {
+                int Ssize = S.size();
+                double threshAdd = gamma * Ssize;
+
+                // pick u with maximum marginal gain = degInS[u] - gamma*|S|
+                int best = -1;
+                double bestScore = 1e-12; // require strictly positive gain
+                for (int u = 0; u < n; u++) if (cand[u] && !in[u]) {
+                    double sc = degInS[u] - threshAdd;
+                    if (sc > bestScore) { bestScore = sc; best = u; }
+                }
+                if (best == -1) break;
+
+                // add best
+                in[best] = true; S.add(best); cand[best] = false;
+                // update degInS for neighbors
+                for (int w : adj[best]) {
+                    if (in[w]) { degInS[best]++; degInS[w]++; }
+                    else if (!used[w]) { cand[w] = true; degInS[w]++; }
+                }
+
+                // prune nodes whose in-set degree is too low for current S
+                boolean changed = true;
+                while (changed) {
+                    changed = false;
+                    Ssize = S.size();
+                    if (Ssize <= 1) break;
+                    // require deg_in_S(v) >= gamma*(|S|-1)
+                    double need = gamma * (Ssize - 1) - 1e-9;
+                    for (int i = 0; i < S.size(); i++) {
+                        int v = S.get(i);
+                        if (degInS[v] < need) {
+                            // remove v from S
+                            in[v] = false;
+                            // decrease neighbor counters
+                            for (int w : adj[v]) {
+                                if (in[w]) { degInS[w]--; }
+                                else if (cand[w]) { degInS[w]--; }
+                            }
+                            // remove by swap-pop
+                            S.a[i] = S.a[S.sz - 1]; S.sz--;
+                            changed = true;
+                            // restart scan over S after size change
+                            break;
+                        }
                     }
                 }
-                if (bestCand != -1) {
-                    // accept bestCand
-                    int u = bestCand;
-                    int addEdges = 0; for (int v : adj[u]) if (in[v]) addEdges++;
-                    curEdges += addEdges;
-                    cur.add(u); in[u] = true; improved = true;
-                    // expand candidate set
-                    for (int w : adj[u]) if (!used[w]) cand.add(w);
-                    cand.remove(u);
-                }
             }
-            if (cur.size() > bestScore) {
-                bestScore = cur.size();
-                bestSet = cur.toArray();
+
+            if (S.size() > bestSize) {
+                bestSize = S.size();
+                bestSet = S.toArray();
             }
         }
         return bestSet;
     }
+
 
     static int countInternalEdges(IntList S, BitSet[] bs) {
         int e = 0;
@@ -771,8 +795,8 @@ public class Table1Synthetic {
             double w = (i < W.length && j < W[0].length) ? W[i][j] : 0;
             cost[i][j] = maxw - w;  // convert to min-cost
         }
-        int[] u = new int[n + 1];
-        int[] v = new int[n + 1];
+        double[] u = new double[n + 1];
+        double[] v = new double[n + 1];
         int[] p = new int[n + 1];
         int[] way = new int[n + 1];
 
