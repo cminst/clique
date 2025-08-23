@@ -34,7 +34,7 @@ public class Table1Synthetic {
 
     // ---- Single Setting ----
 
-    static final double[] PINTRA_LIST = new double[]{0.020};
+    static final double[] PINTRA_LIST = new double[]{0.20};
     static final double[] PINTER_LIST = new double[]{1.5e-4};
     static final int TRIALS_PER_SETTING = 5;
 
