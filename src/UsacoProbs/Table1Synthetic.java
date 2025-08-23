@@ -49,7 +49,7 @@ public class Table1Synthetic {
     static final boolean RUN_LRMC = false;  // flip to true after wiring L-RMC integration
 
     // L-RMC integration: update these names to match your build
-    static final String LRMC_MAIN_CLASS = "UsacoProbs.clique2_mk";
+    static String LRMC_MAIN_CLASS = "UsacoProbs.clique2_mk_benchmark_accuracy";
     static final String EXTRA_HEAP = "-Xmx16g";                        // adjust if needed
     static final double LRMC_EPSILON = 1e-6;                           // same epsilon used in the paper
 
@@ -74,6 +74,17 @@ public class Table1Synthetic {
 
     // ------------------------------- Main entry -------------------------------
     public static void main(String[] args) throws Exception {
+        // Parse command line arguments
+        if (args.length > 0) {
+            if (args[0].equals("-h") || args[0].equals("--help")) {
+                System.out.println("Usage: java UsacoProbs.Table1Synthetic [LRMC_MAIN_CLASS]");
+                System.out.println("  LRMC_MAIN_CLASS: Full class path for L-RMC implementation (default: UsacoProbs.clique2_mk_benchmark_accuracy)");
+                System.out.println("Example: java UsacoProbs.Table1Synthetic UsacoProbs.clique2_mk_benchmark_accuracy");
+                return;
+            }
+            LRMC_MAIN_CLASS = args[0];
+            System.out.println("Using LRMC main class: " + LRMC_MAIN_CLASS);
+        }
         Files.createDirectories(TMP_DIR);
         try (BufferedWriter out = Files.newBufferedWriter(OUT_CSV, StandardCharsets.UTF_8)) {
             out.write("method,n,k,p_intra,p_inter,seed,NMI,ARI,F1\n");
