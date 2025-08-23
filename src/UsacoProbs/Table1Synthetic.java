@@ -34,8 +34,8 @@ public class Table1Synthetic {
 
     // ---- Single Setting ----
 
-    static final double[] PINTRA_LIST = new double[]{0.050};
-    static final double[] PINTER_LIST = new double[]{3e-4};
+    static final double[] PINTRA_LIST = new double[]{0.020};
+    static final double[] PINTER_LIST = new double[]{1.5e-4};
     static final int TRIALS_PER_SETTING = 5;
 
     // ------------------------
@@ -360,7 +360,7 @@ public class Table1Synthetic {
     // Quasi-clique greedy: grow from top-degree seeds; accept nodes as long as density >= gamma
     static int[][] quasiCliqueTopK(Graph G, int K) {
         // pick gamma from a small grid; in synthetic setting, 0.6 is a reasonable default
-        double[] gammaGrid = new double[]{0.03, 0.04, 0.05, 0.06};
+        double[] gammaGrid = new double[]{0.015, 0.02, 0.025};
         // double[] gammaGrid = new double[]{0.55, 0.60, 0.65};
         boolean[] used = new boolean[G.n];
         List<int[]> list = new ArrayList<>();
