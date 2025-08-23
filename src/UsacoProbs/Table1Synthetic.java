@@ -86,6 +86,11 @@ public class Table1Synthetic {
             System.out.println("Using LRMC main class: " + LRMC_MAIN_CLASS);
         }
         Files.createDirectories(TMP_DIR);
+
+        // Total trials (for progress tracking)
+        int totalTrials = N_LIST.length * PINTRA_LIST.length * PINTER_LIST.length * TRIALS_PER_SETTING;
+        int completedTrials = 0;
+
         try (BufferedWriter out = Files.newBufferedWriter(OUT_CSV, StandardCharsets.UTF_8)) {
             out.write("method,n,k,p_intra,p_inter,seed,NMI,ARI,F1\n");
 
@@ -116,6 +121,13 @@ public class Table1Synthetic {
                                 int[][] clusters = lrmcTopK_viaCli(G, NUM_CLUSTERS, seed);
                                 double[] s = evalAll(G.truth, clusters, G.n);
                                 writeRow(out, "L-RMC", n, NUM_CLUSTERS, pIntra, pInter, seed, s);
+                            }
+
+                            // Progress tracking
+                            completedTrials++;
+                            if (completedTrials % 5 == 0 || completedTrials == totalTrials) {
+                                System.out.printf("Progress: %d/%d trials completed (%.1f%%)%n",
+                                    completedTrials, totalTrials, (100.0 * completedTrials) / totalTrials);
                             }
                         }
                     }
