@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
-class LRMCmkpaper {
+class LRMCmkpeeling {
 
     // ---------------- experiment constants from the paper ----------------
     // n in [20k, 1M], 10 planted clusters, p_intra in [0.005, 0.02], q in [1e-4, 1e-3]
@@ -19,32 +19,32 @@ class LRMCmkpaper {
     static final String[] SERIES_LABELS = {"p0.010"};
 
     // Trials and sizes
-    static final int S_MIN = 894_000;  // paper starts at 20k
+    static final int S_MIN = 10_000;
     static final int S_MAX = 1_050_000;
-    static final int NUM_SIZES = 2;
+    static final int NUM_SIZES = 30;
     static final int TRIALS = 3;
 
     // Algorithm hyperparameters
-    static final double EPSILON = 1e-6; // paper default
+    static final double EPSILON = 1e-6; // forwarded to LRMC main if PASS_EPSILON is true
 
     // JVM settings for the inner run; bump if you hit OOM at the top end
     static final String EXTRA_HEAP = "-Xmx8g";
 
-    // If your clique2 main expects epsilon before the input path, set this true
+    // If your LRMC main expects epsilon before the input path, set this true
     static final boolean PASS_EPSILON = true;
 
     static final long SEED = 123456789L;
 
-    static String clique2Main;
+    static String lrmcMain;
     static String outputCsvFile;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 2) {
-            System.err.println("Usage: java LRMCSim <CLIQUE2_MAIN> <output_csv_file>");
+            System.err.println("Usage: java LRMCmkpaper <LRMC_MAIN> <output_csv_file>");
             return;
         }
 
-        clique2Main = args[0];
+        lrmcMain = args[0];
         outputCsvFile = args[1];
 
         Random rng = new Random(SEED);
@@ -64,34 +64,21 @@ class LRMCmkpaper {
                         n, NUM_CLUSTERS, CLUSTER_FRACTION,
                         pIntra, pInter, rng, inputFile);
 
-                // Compute degeneracy k on the generated graph
-                int kDeg = computeDegeneracyFromFile(n, m, inputFile);
-
-                // Theory curve: (|V|+|E|) log |V| + |E| * k
-                double theoX = (n + m) * Math.log(Math.max(2, n)) + (double) m * kDeg;
-
                 for (int t = 0; t < TRIALS; t++) {
-                    double ms = runClique2(EPSILON, inputFile);
-                    allRows.add(new Row(series, n, m, t + 1, ms, theoX, pIntra, pInter));
+                    double msLRMC = runLRMC(EPSILON, inputFile);
+                    double msCharikar = runCharikarPeeling(inputFile);
+                    allRows.add(new Row(series, n, m, t + 1, msLRMC, msCharikar, pIntra, pInter));
                 }
             }
         }
 
-        // Fit scale so that scale * theoX ~ ms in least squares sense
-        double num = 0, den = 0;
-        for (Row r : allRows) {
-            num += r.theoX * r.ms;
-            den += r.theoX * r.theoX;
-        }
-        double scale = den == 0 ? 0 : num / den;
-
         // Write CSV to specified file
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(outputCsvFile), StandardCharsets.UTF_8)) {
-            writer.write("series,n,m,trial,ms,theo_x,normalized_theory_ms,p_intra,p_inter\n");
+            writer.write("series,n,m,trial,ms_lrmc,ms_charikar,ratio_char_over_lrmc,p_intra,p_inter\n");
             for (Row r : allRows) {
-                double norm = scale * r.theoX;
-                writer.write(String.format(Locale.US, "%s,%d,%d,%d,%.3f,%.3f,%.3f,%.6f,%.6g\n",
-                        r.series, r.n, r.m, r.trial, r.ms, r.theoX, norm, r.pIntra, r.pInter));
+                double ratio = r.msCharikar / Math.max(1e-9, r.msLRMC);
+                writer.write(String.format(Locale.US, "%s,%d,%d,%d,%.3f,%.3f,%.4f,%.6f,%.6g\n",
+                        r.series, r.n, r.m, r.trial, r.msLRMC, r.msCharikar, ratio, r.pIntra, r.pInter));
             }
         }
 
@@ -106,23 +93,28 @@ class LRMCmkpaper {
             for (var e : eSeries.getValue().entrySet()) {
                 int n = e.getKey();
                 long m = e.getValue().get(0).m;
-                double[] arr = e.getValue().stream().mapToDouble(rr -> rr.ms).toArray();
-                double mean = mean(arr), sd = stddev(arr, mean);
-                double theoX = e.getValue().get(0).theoX;
-                double norm = scale * theoX;
+
+                double[] arrLR = e.getValue().stream().mapToDouble(rr -> rr.msLRMC).toArray();
+                double[] arrCH = e.getValue().stream().mapToDouble(rr -> rr.msCharikar).toArray();
+                double meanLR = mean(arrLR), sdLR = stddev(arrLR, meanLR);
+                double meanCH = mean(arrCH), sdCH = stddev(arrCH, meanCH);
+                double ratio = meanCH / Math.max(1e-9, meanLR);
+
                 double pIntra = e.getValue().get(0).pIntra;
                 double pInter = e.getValue().get(0).pInter;
-                System.out.printf(Locale.US, "# summary,%s,%d,%d,%.3f,%.3f,%.3f,%.6f,%.6g%n",
-                        s, n, m, mean, theoX, norm, pIntra, pInter);
+
+                System.out.printf(Locale.US, "# summary,%s,%d,%d,mean_lrmc_ms=%.3f,mean_char_ms=%.3f,ratio=%.4f,p_intra=%.6f,p_inter=%.6g%n",
+                        s, n, m, meanLR, meanCH, ratio, pIntra, pInter);
                 if (TRIALS > 1) {
-                    System.out.printf(Locale.US, "# summary_std,%s,%d,%d,%.3f%n", s, n, m, sd);
+                    System.out.printf(Locale.US, "# summary_std,%s,%d,%d,sd_lrmc_ms=%.3f,sd_char_ms=%.3f%n",
+                            s, n, m, sdLR, sdCH);
                 }
             }
         }
     }
 
-    // ------------ run clique2 ------------
-    private static double runClique2(double epsilon, Path inputFile) throws IOException, InterruptedException {
+    // ------------ run LRMC external main ------------
+    private static double runLRMC(double epsilon, Path inputFile) throws IOException, InterruptedException {
         String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
         String classpath = System.getProperty("java.class.path");
 
@@ -131,7 +123,7 @@ class LRMCmkpaper {
         cmd.add(EXTRA_HEAP);
         cmd.add("-cp");
         cmd.add(classpath);
-        cmd.add(clique2Main);
+        cmd.add(lrmcMain);
         if (PASS_EPSILON) cmd.add(Double.toString(epsilon));
         cmd.add(inputFile.toAbsolutePath().toString());
 
@@ -148,12 +140,139 @@ class LRMCmkpaper {
             }
         }
         int exit = p.waitFor();
-        if (exit != 0) throw new RuntimeException("clique2 exited with code " + exit);
-        if (lastRuntime == null) throw new RuntimeException("No 'Runtime: ... ms' line from clique2");
+        if (exit != 0) throw new RuntimeException("LRMC main exited with code " + exit);
+        if (lastRuntime == null) throw new RuntimeException("No 'Runtime: ... ms' line from LRMC main");
 
         String msStr = lastRuntime.replace("Runtime:", "").replace("ms", "").trim();
         System.out.println(inputFile.toAbsolutePath().toString());
         return Double.parseDouble(msStr);
+    }
+
+    // ------------ Charikar's greedy peeling (densest subgraph), end-to-end runtime ------------
+    // Includes file parsing and adjacency build for parity with LRMC's end-to-end measurement.
+    private static double runCharikarPeeling(Path edgeListFile) throws IOException {
+        long t0 = System.nanoTime();
+
+        // First pass: read header and degrees
+        int n;
+        long mFromHeader;
+        int[] deg;
+        try (BufferedReader br = Files.newBufferedReader(edgeListFile, StandardCharsets.UTF_8)) {
+            String hdr = br.readLine();
+            if (hdr == null) throw new IOException("Empty graph file");
+            int sp = hdr.indexOf(' ');
+            if (sp <= 0) throw new IOException("Bad header: " + hdr);
+            n = Integer.parseInt(hdr.substring(0, sp));
+            mFromHeader = Long.parseLong(hdr.substring(sp + 1));
+            deg = new int[n];
+
+            String s;
+            while ((s = br.readLine()) != null) {
+                if (s.isEmpty()) continue;
+                int sp2 = s.indexOf(' ');
+                if (sp2 <= 0) continue;
+                int u = Integer.parseInt(s.substring(0, sp2)) - 1;
+                int v = Integer.parseInt(s.substring(sp2 + 1)) - 1;
+                if (u == v || u < 0 || u >= n || v < 0 || v >= n) continue;
+                deg[u]++; deg[v]++;
+            }
+        }
+
+        int maxDeg = 0;
+        long totalAdj = 0;
+        for (int d : deg) { if (d > maxDeg) maxDeg = d; totalAdj += d; }
+
+        // Build adjacency with offsets, second pass to fill
+        int[] off = new int[n + 1];
+        for (int i = 0; i < n; i++) off[i + 1] = off[i] + deg[i];
+        int[] adj = new int[(int) totalAdj];
+        int[] cur = Arrays.copyOf(off, off.length);
+
+        try (BufferedReader br = Files.newBufferedReader(edgeListFile, StandardCharsets.UTF_8)) {
+            br.readLine(); // skip header
+            String s;
+            while ((s = br.readLine()) != null) {
+                if (s.isEmpty()) continue;
+                int sp = s.indexOf(' ');
+                if (sp <= 0) continue;
+                int u = Integer.parseInt(s.substring(0, sp)) - 1;
+                int v = Integer.parseInt(s.substring(sp + 1)) - 1;
+                if (u == v || u < 0 || u >= n || v < 0 || v >= n) continue;
+                adj[cur[u]++] = v;
+                adj[cur[v]++] = u;
+            }
+        }
+
+        // Greedy peeling with integer buckets
+        int[] curDeg = Arrays.copyOf(deg, deg.length);
+        boolean[] alive = new boolean[n];
+        Arrays.fill(alive, true);
+        int[] head = new int[maxDeg + 1];
+        int[] tail = new int[maxDeg + 1];
+        Arrays.fill(head, -1);
+        Arrays.fill(tail, -1);
+        int[] next = new int[n];
+        int[] prev = new int[n];
+        Arrays.fill(next, -1);
+        Arrays.fill(prev, -1);
+
+        for (int v = 0; v < n; v++) bucketAdd(v, curDeg[v], head, tail, next, prev);
+
+        int currentMin = 0;
+        long aliveEdges = totalAdj / 2; // equals m
+        int aliveCount = n;
+        double bestDensity = aliveCount > 0 ? aliveEdges / (double) aliveCount : 0.0;
+
+        for (int removed = 0; removed < n; removed++) {
+            while (currentMin <= maxDeg && head[currentMin] == -1) currentMin++;
+            if (currentMin > maxDeg) break; // no vertices left
+
+            int v = head[currentMin];
+            bucketRemove(v, currentMin, head, tail, next, prev);
+            int dv = curDeg[v];
+            alive[v] = false;
+
+            // update neighbors
+            for (int p = off[v]; p < off[v + 1]; p++) {
+                int u = adj[p];
+                if (!alive[u]) continue;
+                int du = curDeg[u];
+                if (du <= 0) continue;
+                bucketRemove(u, du, head, tail, next, prev);
+                curDeg[u] = du - 1;
+                bucketAdd(u, du - 1, head, tail, next, prev);
+            }
+
+            aliveEdges -= dv;
+            aliveCount--;
+            if (aliveCount > 0) {
+                double dens = aliveEdges / (double) aliveCount;
+                if (dens > bestDensity) bestDensity = dens;
+            }
+
+            // neighbors can drop the min by at most 1
+            currentMin = Math.max(0, currentMin - 1);
+        }
+
+        long t1 = System.nanoTime();
+        return (t1 - t0) / 1e6; // ms
+    }
+
+    private static void bucketAdd(int v, int d, int[] head, int[] tail, int[] next, int[] prev) {
+        // insert at head of bucket d
+        int h = head[d];
+        prev[v] = -1;
+        next[v] = h;
+        if (h != -1) prev[h] = v; else tail[d] = v;
+        head[d] = v;
+    }
+
+    private static void bucketRemove(int v, int d, int[] head, int[] tail, int[] next, int[] prev) {
+        int pv = prev[v];
+        int nv = next[v];
+        if (pv != -1) next[pv] = nv; else head[d] = nv;
+        if (nv != -1) prev[nv] = pv; else tail[d] = pv;
+        prev[v] = -1; next[v] = -1;
     }
 
     // ------------ clustered generator (expected O(m)) ------------
@@ -205,108 +324,6 @@ class LRMCmkpaper {
             while ((len = in.read(buf)) != -1) out.write(buf, 0, len);
         }
         return m;
-    }
-
-    // Compute graph degeneracy (k-core number) in O(n + m) time.
-    // Reads the edge list from 'edgeListFile', which is the same file with the "n m" header then undirected edges.
-    // Nodes are 1-based in the file and converted to 0-based internally.
-    static int computeDegeneracyFromFile(int n, long m, Path edgeListFile) throws IOException {
-        // 1) First pass: degrees
-        int[] deg = new int[n];
-        try (BufferedReader br = Files.newBufferedReader(edgeListFile, StandardCharsets.UTF_8)) {
-            br.readLine(); // skip header "n m"
-            String s;
-            while ((s = br.readLine()) != null) {
-                if (s.isEmpty()) continue;
-                int sp = s.indexOf(' ');
-                if (sp <= 0) continue;
-                int u = Integer.parseInt(s.substring(0, sp)) - 1;
-                int v = Integer.parseInt(s.substring(sp + 1)) - 1;
-                if (u == v) continue; // ignore self-loops if any
-                if (u < 0 || u >= n || v < 0 || v >= n) continue; // guard
-                deg[u]++; deg[v]++;
-            }
-        }
-
-        int maxDeg = 0;
-        long totalAdj = 0;
-        for (int d : deg) { if (d > maxDeg) maxDeg = d; totalAdj += d; }
-
-        // 2) Build adjacency with offsets, second pass to fill
-        if (totalAdj > Integer.MAX_VALUE) {
-            // Fallback: return an upper bound when the adjacency would overflow.
-            int ub = 0; for (int d : deg) if (d > ub) ub = d;
-            return ub;
-        }
-        int[] off = new int[n + 1];
-        for (int i = 0; i < n; i++) off[i + 1] = off[i] + deg[i];
-        int[] adj = new int[(int) totalAdj];
-        int[] cur = Arrays.copyOf(off, off.length);
-
-        try (BufferedReader br = Files.newBufferedReader(edgeListFile, StandardCharsets.UTF_8)) {
-            br.readLine(); // skip header
-            String s;
-            while ((s = br.readLine()) != null) {
-                if (s.isEmpty()) continue;
-                int sp = s.indexOf(' ');
-                if (sp <= 0) continue;
-                int u = Integer.parseInt(s.substring(0, sp)) - 1;
-                int v = Integer.parseInt(s.substring(sp + 1)) - 1;
-                if (u == v || u < 0 || u >= n || v < 0 || v >= n) continue;
-                adj[cur[u]++] = v;
-                adj[cur[v]++] = u;
-            }
-        }
-
-        // 3) Matula–Beck bucket-based core decomposition
-        int[] degree = Arrays.copyOf(deg, deg.length);
-        int[] bin = new int[maxDeg + 1];
-        for (int d : degree) bin[d]++;
-
-        int start = 0;
-        for (int d = 0; d <= maxDeg; d++) {
-            int count = bin[d];
-            bin[d] = start;
-            start += count;
-        }
-
-        int[] vert = new int[n];
-        int[] pos  = new int[n];
-        for (int v = 0; v < n; v++) {
-            pos[v] = bin[degree[v]];
-            vert[pos[v]] = v;
-            bin[degree[v]]++;
-        }
-        // reset bin to starts
-        for (int d = maxDeg; d > 0; d--) bin[d] = bin[d - 1];
-        bin[0] = 0;
-
-        int kDeg = 0;
-        for (int i = 0; i < n; i++) {
-            int v = vert[i];
-            int dv = degree[v];
-            if (dv > kDeg) kDeg = dv;
-
-            // peel v and decrement neighbors with degree > dv
-            for (int p = off[v]; p < off[v + 1]; p++) {
-                int u = adj[p];
-                if (degree[u] > dv) {
-                    int du = degree[u];
-                    int pu = pos[u];
-                    int pw = bin[du];
-                    int w  = vert[pw];
-                    if (u != w) {
-                        // swap u with w
-                        vert[pu] = w; pos[w] = pu;
-                        vert[pw] = u; pos[u] = pw;
-                    }
-                    bin[du]++;         // advance bucket start for degree du
-                    degree[u] = du - 1;
-                }
-            }
-            degree[v] = 0; // removed
-        }
-        return kDeg;
     }
 
     // skip-sampling over unordered pairs in a set
@@ -375,9 +392,18 @@ class LRMCmkpaper {
     }
 
     static final class Row {
-        final String series; final int n; final long m; final int trial; final double ms; final double theoX; final double pIntra; final double pInter;
-        Row(String series, int n, long m, int trial, double ms, double theoX, double pIntra, double pInter) {
-            this.series = series; this.n = n; this.m = m; this.trial = trial; this.ms = ms; this.theoX = theoX; this.pIntra = pIntra; this.pInter = pInter;
+        final String series;
+        final int n;
+        final long m;
+        final int trial;
+        final double msLRMC;
+        final double msCharikar;
+        final double pIntra;
+        final double pInter;
+        Row(String series, int n, long m, int trial, double msLRMC, double msCharikar, double pIntra, double pInter) {
+            this.series = series; this.n = n; this.m = m; this.trial = trial;
+            this.msLRMC = msLRMC; this.msCharikar = msCharikar;
+            this.pIntra = pIntra; this.pInter = pInter;
         }
     }
 }
