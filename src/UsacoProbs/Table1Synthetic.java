@@ -82,7 +82,12 @@ public class Table1Synthetic {
                 System.out.println("Example: java UsacoProbs.Table1Synthetic UsacoProbs.clique2_mk_benchmark_accuracy");
                 return;
             }
-            LRMC_MAIN_CLASS = args[0];
+            // Normalize to fully-qualified class name
+            String c = args[0];
+            String normalized = c.replace('\\', '.').replace('/', '.');
+            if (normalized.endsWith(".java")) normalized = normalized.substring(0, normalized.length() - 5);
+            else if (normalized.endsWith(".class")) normalized = normalized.substring(0, normalized.length() - 6);
+            LRMC_MAIN_CLASS = normalized;
             System.out.println("Using LRMC main class: " + LRMC_MAIN_CLASS);
         }
         Files.createDirectories(TMP_DIR);
@@ -433,12 +438,28 @@ public class Table1Synthetic {
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
             Process proc = pb.start();
+            StringBuilder childOutput = new StringBuilder();
             try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8))) {
-                // consume output; optional: parse runtime
-                while (br.readLine() != null) { /* swallow */ }
+                String line;
+                while ((line = br.readLine()) != null) {
+                    childOutput.append(line).append('\n');
+                }
             }
             int rc = proc.waitFor();
-            if (rc != 0) throw new RuntimeException("clique2_mk exited with code " + rc);
+            if (rc != 0) {
+                String joinedCmd;
+                try {
+                    joinedCmd = String.join(" ", cmd);
+                } catch (Throwable t) {
+                    joinedCmd = cmd.toString();
+                }
+                throw new RuntimeException(
+                        "clique2_mk exited with code " + rc +
+                        "\nCommand: " + joinedCmd +
+                        "\nCWD: " + System.getProperty("user.dir") +
+                        "\nOutput from child (stdout+stderr):\n" + childOutput
+                );
+            }
 
             // Read membership, map back to original nodes, mark used and store cluster
             IntList comp = new IntList();
@@ -472,10 +493,10 @@ public class Table1Synthetic {
             boolean[][] seen = null; // don't allocate; we can just write each u<v once
             for (int u = 0; u < n; u++) {
                 for (int v : adj[u]) if (u < v) {
-                    // convert to 1-based original IDs
-                    int U = newToOld[u] + 1;
-                    int V = newToOld[v] + 1;
-                    w.write(U + " " + V); w.newLine();
+                    // Use 1-based subgraph IDs to match header n
+                    int Unew = u + 1;
+                    int Vnew = v + 1;
+                    w.write(Unew + " " + Vnew); w.newLine();
                 }
             }
         }
