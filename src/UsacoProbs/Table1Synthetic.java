@@ -426,8 +426,9 @@ public class Table1Synthetic {
             cmd.add("-cp"); cmd.add(classpath);
             cmd.add(LRMC_MAIN_CLASS);
             cmd.add(Double.toString(LRMC_EPSILON));
-            cmd.add(edgeFile.toString());
-            cmd.add(membFile.toString());
+            // Use absolute paths like LRMCmkpaper to avoid CWD issues
+            cmd.add(edgeFile.toAbsolutePath().toString());
+            cmd.add(membFile.toAbsolutePath().toString());
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
