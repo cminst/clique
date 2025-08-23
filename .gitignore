@@ -24,3 +24,6 @@ hs_err_pid*
 
 # Temporary table files
 src/tmp_table1/
+
+# macOS system files
+.DS_Store
