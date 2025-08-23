@@ -46,7 +46,7 @@ public class Table1Synthetic {
     static final boolean RUN_KCORE = true;
     static final boolean RUN_DENSEST = true;
     static final boolean RUN_QUASICLIQUE = true;
-    static final boolean RUN_LRMC = false;  // flip to true after wiring L-RMC integration
+    static final boolean RUN_LRMC = true;
 
     // L-RMC integration: update these names to match your build
     static String LRMC_MAIN_CLASS = "UsacoProbs.clique2_mk_benchmark_accuracy";
