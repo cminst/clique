@@ -470,9 +470,15 @@ public class Table1Synthetic {
                     if (s.isEmpty()) continue;
                     int sp = s.indexOf(' ');
                     if (sp <= 0) continue;
-                    int nid = Integer.parseInt(s.substring(0, sp));   // 0-based new id
-                    int lab = Integer.parseInt(s.substring(sp + 1));  // 1 or 0
-                    if (lab == 1) comp.add(S.oldId[nid]);
+                    // Read the 1-based ID from the file and convert it to 0-based
+                    int nid_1based = Integer.parseInt(s.substring(0, sp));
+                    int nid_0based = nid_1based - 1;
+                    int lab = Integer.parseInt(s.substring(sp + 1));
+
+                    // Use the correct 0-based index
+                    if (lab == 1 && nid_0based >= 0 && nid_0based < S.oldId.length) {
+                        comp.add(S.oldId[nid_0based]);
+                    }
                 }
             }
             int[] c = comp.toArray();
