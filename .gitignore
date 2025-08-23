@@ -21,3 +21,6 @@
 
 # virtual machine crash logs
 hs_err_pid*
+
+# Temporary table files
+src/tmp_table1/
