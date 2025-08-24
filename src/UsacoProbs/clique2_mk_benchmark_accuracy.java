@@ -1,18 +1,15 @@
-// ===============================================
-// >>> DO NOT USE THIS FOR SPEED BENCHMARKING! <<<
-// ===============================================
 package UsacoProbs;
 
 import java.io.*;
 import java.util.*;
+import java.util.Locale;
 
 public class clique2_mk_benchmark_accuracy {
     static int n, m;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 2) {
-            System.err.println("Usage: java clique2_mk_benchmark_accuracy <epsilon> <inputfile> [outputfile]");
-            return;
+            System.err.println("Usage: java clique2_mk_benchmark_accuracy <epsilon> <inputfile>");
         }
         final double EPS = Double.parseDouble(args[0]);
 
@@ -38,91 +35,88 @@ public class clique2_mk_benchmark_accuracy {
         r.close();
 
         long t0 = System.nanoTime();
-        Result res = runLaplacianRMC(adj, EPS);
+        Result res = runLaplacianRMC(adj, n, EPS);
         long t1 = System.nanoTime();
 
-        // Add debug output
-        int clusterSize = 0;
-        for (int i = 1; i <= n; i++) {
-            if (res.bestMask[i]) clusterSize++;
-        }
-        System.err.println("L-RMC: Best SL = " + res.bestSL + ", cluster size = " + clusterSize + " / " + n);
-
-        if (args.length >= 3) {
-            try (PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(args[2])))) {
-                // The harness expects 0-based node IDs from 0 to n-1.
-                // Internal nodes are 1 to n. We must convert.
-                for (int i = 1; i <= n; i++) { // Iterate over valid nodes 1..n
-                    // Write 0-based ID (i-1) and its membership status from bestMask[i]
-                    pw.println((i - 1) + " " + (res.bestMask[i] ? 1 : 0));
-                }
-            }
-        }
-
-        System.out.printf(Locale.US, "Best SL: %.6f, in component of node %d%n", res.bestSL, res.bestRoot);
         System.out.printf(Locale.US, "Runtime: %.3f ms%n", (t1 - t0) / 1_000_000.0);
     }
 
-    static Result runLaplacianRMC(List<Integer>[] adj, double EPS) {
-        // -------- Phase 1: peeling --------
-        int[] deg0 = new int[n + 1];
-        boolean[] bestMask = new boolean[n + 1];
+    /**
+     * Optimized O(Mk) algorithm for L-RMC.
+     * @param adj Adjacency list of the graph (nodes are 1-indexed)
+     * @param numNodes The total number of nodes in the graph (n)
+     * @param EPS A small constant to prevent division by zero
+     * @return A Result object containing the best score and the set of nodes in the best component.
+     */
+    static Result runLaplacianRMC(List<Integer>[] adj, int numNodes, double EPS) {
+        // -------- Phase 1: peeling (This part was correct) --------
+        int[] currentDegrees = new int[numNodes + 1];
         PriorityQueue<Pair> pq = new PriorityQueue<>();
-
-        for (int i = 1; i <= n; i++) {
-            deg0[i] = adj[i].size();
-            pq.add(new Pair(i, deg0[i]));
+        for (int i = 1; i <= numNodes; i++) {
+            if (adj[i] != null) {
+                currentDegrees[i] = adj[i].size();
+                pq.add(new Pair(i, currentDegrees[i]));
+            }
         }
-        Deque<Integer> peelStack = new ArrayDeque<>(n);
+
+        Deque<Integer> peelOrder = new ArrayDeque<>(numNodes);
+        boolean[] removed = new boolean[numNodes + 1];
+
         while (!pq.isEmpty()) {
             Pair p = pq.poll();
-            if (p.degree != deg0[p.node]) continue;
-            peelStack.push(p.node);
+            if (removed[p.node]) continue;
+
+            removed[p.node] = true;
+            peelOrder.push(p.node); // This is the peeling order
+
+            if (adj[p.node] == null) continue;
             for (int v : adj[p.node]) {
-                if (deg0[v] > 0) {
-                    deg0[v]--;
-                    pq.add(new Pair(v, deg0[v]));
+                if (!removed[v]) {
+                    currentDegrees[v]--;
+                    pq.add(new Pair(v, currentDegrees[v]));
                 }
             }
-            deg0[p.node] = -1; // Mark as fully peeled
         }
 
-        int[] addOrder = new int[n];
-        int[] idx = new int[n + 1];
-        for (int t = 0; t < n; t++) {
-            int u = peelStack.pop();
+        // Reverse peeling order to get addOrder
+        int[] addOrder = new int[peelOrder.size()];
+        int[] idx = new int[numNodes + 1];
+        for (int t = 0; t < addOrder.length; t++) {
+            int u = peelOrder.pop();
             addOrder[t] = u;
             idx[u] = t;
         }
 
-        // -------- Phase 1.5: orient edges --------
+        // -------- Phase 1.5: orient edges (This part was correct) --------
         @SuppressWarnings("unchecked")
-        ArrayList<Integer>[] succ = new ArrayList[n + 1];
+        ArrayList<Integer>[] succ = new ArrayList[numNodes + 1];
         @SuppressWarnings("unchecked")
-        ArrayList<Integer>[] pred = new ArrayList[n + 1];
-        for (int i = 1; i <= n; i++) { succ[i] = new ArrayList<>(); pred[i] = new ArrayList<>(); }
+        ArrayList<Integer>[] pred = new ArrayList[numNodes + 1];
+        for (int i = 1; i <= numNodes; i++) { succ[i] = new ArrayList<>(); pred[i] = new ArrayList<>(); }
 
-        for (int u = 1; u <= n; u++) {
+        for (int u = 1; u <= numNodes; u++) {
+            if (adj[u] == null) continue;
             for (int v : adj[u]) {
-                if (idx[u] < idx[v]) {
-                    succ[u].add(v);
-                    pred[v].add(u);
+                if (u < v) { // Process each edge once
+                    if (idx[u] < idx[v]) {
+                        succ[u].add(v); pred[v].add(u);
+                    } else {
+                        succ[v].add(u); pred[u].add(v);
+                    }
                 }
             }
         }
-        for (int v = 1; v <= n; v++) {
-            if (succ[v].size() > 1) {
-                succ[v].sort(Comparator.comparingInt(w -> idx[w]));
-            }
+        for (int v = 1; v <= numNodes; v++) {
+            succ[v].sort(Comparator.comparingInt(w -> idx[w]));
         }
 
-        // -------- Phase 2: reverse reconstruction --------
-        DSU dsu = new DSU(n);
-        int[] deg = new int[n + 1];
-        long[] predSum = new long[n + 1];
+        // -------- Phase 2: reverse reconstruction (CORRECTED LOGIC) --------
+        DSU dsu = new DSU(numNodes);
+        int[] deg = new int[numNodes + 1];
+        long[] predSum = new long[numNodes + 1];
 
-        double bestSL = 0.0;
-        int bestRoot = -1;
+        double bestScore = -1.0;
+        Set<Integer> bestComponent = new HashSet<>();
 
         final SumSucc sumSucc = new SumSucc(succ, idx, deg);
 
@@ -131,105 +125,56 @@ public class clique2_mk_benchmark_accuracy {
             long Su = 0L;
             final int Tu = idx[u];
 
+            // 1. Add node u and all its back-edges, updating Q incrementally
             for (int v : pred[u]) {
-                long a = deg[u];
-                long b = deg[v];
+                long a = deg[u], b = deg[v];
                 long Sv = predSum[v] + sumSucc.until(v, Tu);
 
-                long dQu = 2L * a * a - 2L * Su + a;
-                long dQv = 2L * b * b - 2L * Sv + b;
-                long edgeTerm = (a - b) * (a - b);
+                // Calculate the change in Q from adding edge (u, v) using Equation (3)
+                double deltaQ = (a - b) * (a - b)
+                              + (2.0 * a * a - 2.0 * Su + a)
+                              + (2.0 * b * b - 2.0 * Sv + b);
 
                 int ru = dsu.find(u);
                 int rv = dsu.find(v);
+                int r = dsu.union(ru, rv);
 
-                // Temporarily apply changes to copies to score before committing
-                double tempQ_ru = dsu.Q[ru] + dQu;
-                double tempQ_rv = dsu.Q[rv] + dQv;
+                // Add the change to the Q of the merged component
+                dsu.Q[r] += deltaQ;
 
-                int r_new;
-                double Q_new;
-                int size_new;
-
-                if (ru != rv) {
-                    if (dsu.size[ru] < dsu.size[rv]) { int t = ru; ru = rv; rv = t; } // Keep consistent parent
-                    r_new = ru;
-                    size_new = dsu.size[ru] + dsu.size[rv];
-                    Q_new = tempQ_ru + tempQ_rv + edgeTerm;
-                } else {
-                    r_new = ru;
-                    size_new = dsu.size[ru];
-                    // dQu and dQv are double-counted on the same component, but edgeTerm is new
-                    Q_new = dsu.Q[ru] + dQu + dQv + edgeTerm;
-                }
-
-                double sL = size_new / (Q_new + EPS);
-                if (sL > bestSL) {
-                    bestSL = sL;
-                    bestRoot = r_new;
-
-                    // Snapshot membership.
-                    Arrays.fill(bestMask, false);
-                    for (int i = 1; i <= n; i++) { // Iterate over valid nodes 1..n
-                        // Check if node i belongs to the component(s) that are about to be merged
-                        if (dsu.find(i) == ru || dsu.find(i) == rv) {
-                            bestMask[i] = true;
-                        }
-                    }
-                }
-
-                // Commit changes to DSU
-                dsu.union(u, v);
-                int r_final = dsu.find(u);
-                dsu.Q[r_final] = Q_new; // Update Q after merge
-
-                deg[u]++;
-                deg[v]++;
-
+                // Update degrees and helper sums for the *next* edge calculation
+                deg[u]++; deg[v]++;
                 for (int y : succ[u]) predSum[y]++;
                 for (int y : succ[v]) predSum[y]++;
+                Su += deg[v]; // Su tracks sum of degrees of u's already-added neighbors
+            }
 
-                Su += deg[v];
+            // 2. Now that u is fully integrated, score its component
+            int r_final = dsu.find(u);
+            List<Integer> compNodes = dsu.componentNodes.get(r_final);
+            int nc = compNodes.size();
+
+            if (nc > 1) { // Only score non-trivial components
+                // This is the correct surrogate score from Equation (2)
+                double score = nc / (dsu.Q[r_final] + EPS);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestComponent = new HashSet<>(compNodes);
+                }
             }
         }
 
         Result out = new Result();
-        out.bestSL = bestSL;
-        out.bestRoot = bestRoot;
-        out.bestMask = bestMask;
+        out.bestScore = bestScore;
+        out.bestComponent = bestComponent;
         return out;
     }
 
-    // ---------- Small helper for successor-degree partial sums ----------
-    static final class SumSucc {
-        final ArrayList<Integer>[] succ;
-        final int[] idx;
-        final int[] deg;
-
-        SumSucc(ArrayList<Integer>[] succ, int[] idx, int[] deg) {
-            this.succ = succ; this.idx = idx; this.deg = deg;
-        }
-
-        /** Sum of deg[w] over successors w of v with idx[w] < T (succ[v] sorted by idx). */
-        long until(int v, int T) {
-            long s = 0L;
-            final ArrayList<Integer> sv = succ[v];
-            final int sz = sv.size();
-            for (int i = 0; i < sz; i++) {
-                int w = sv.get(i);
-                if (idx[w] >= T) break;
-                s += deg[w];
-            }
-            return s;
-        }
-    }
-
-    // ---------- Helpers ----------
-
+    // ---------- Helpers (can be nested or in the same file) ----------
     static class Result {
-        double bestSL;
-        int bestRoot;
-        boolean[] bestMask; //  length n, true if node is in best cluster
+        double bestScore;
+        Set<Integer> bestComponent;
     }
 
     static class Pair implements Comparable<Pair> {
@@ -241,42 +186,62 @@ public class clique2_mk_benchmark_accuracy {
         }
     }
 
-    /** DSU that also tracks component Laplacian Q as double. */
     static class DSU {
         final int[] parent;
-        final int[] size;
-        final boolean[] made;
-        final double[] Q;
+        final double[] Q; // Laplacian energy d^T L d
+        final Map<Integer, List<Integer>> componentNodes;
 
         DSU(int n) {
             parent = new int[n + 1];
-            size = new int[n + 1];
-            made = new boolean[n + 1];
             Q = new double[n + 1];
+            componentNodes = new HashMap<>();
         }
+
         void makeIfNeeded(int v) {
-            if (!made[v]) {
-                made[v] = true;
+            if (parent[v] == 0) { // More robust check
                 parent[v] = v;
-                size[v] = 1;
                 Q[v] = 0.0;
+                List<Integer> nodes = new ArrayList<>();
+                nodes.add(v);
+                componentNodes.put(v, nodes);
             }
         }
+
         int find(int v) {
-            if (!made[v]) return v; // treat as isolated until made
             if (parent[v] != v) parent[v] = find(parent[v]);
             return parent[v];
         }
+
         int union(int a, int b) {
-            makeIfNeeded(a);
-            makeIfNeeded(b);
-            int ra = find(a), rb = find(b);
-            if (ra == rb) return ra;
-            if (size[ra] < size[rb]) { int t = ra; ra = rb; rb = t; }
-            parent[rb] = ra;
-            size[ra] += size[rb];
-            Q[ra] += Q[rb];
-            return ra;
+            a = find(a);
+            b = find(b);
+            if (a == b) return a;
+            if (componentNodes.get(a).size() < componentNodes.get(b).size()) { int t = a; a = b; b = t; }
+
+            parent[b] = a;
+            componentNodes.get(a).addAll(componentNodes.get(b));
+            componentNodes.remove(b);
+            Q[a] += Q[b];
+            return a;
+        }
+    }
+
+    static final class SumSucc {
+        final ArrayList<Integer>[] succ;
+        final int[] idx;
+        final int[] deg;
+
+        SumSucc(ArrayList<Integer>[] succ, int[] idx, int[] deg) {
+            this.succ = succ; this.idx = idx; this.deg = deg;
+        }
+
+        long until(int v, int T) {
+            long s = 0L;
+            for (int w : succ[v]) {
+                if (idx[w] >= T) break;
+                s += deg[w];
+            }
+            return s;
         }
     }
 }
