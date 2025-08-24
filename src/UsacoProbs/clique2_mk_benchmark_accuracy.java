@@ -1,18 +1,18 @@
+// ===============================================
+// >>> DO NOT USE THIS FOR SPEED BENCHMARKING! <<<
+// ===============================================
 package UsacoProbs;
 
 import java.io.*;
 import java.util.*;
-import java.util.Locale;
 
-// ===============================================
-// >>> DO NOT USE THIS FOR SPEED BENCHMARKING! <<<
-// ===============================================
 public class clique2_mk_benchmark_accuracy {
     static int n, m;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 2) {
-            System.err.println("Usage: java clique2_mk_benchmark_accuracy <epsilon> <inputfile>");
+            System.err.println("Usage: java clique2_mk_benchmark_accuracy <epsilon> <inputfile> [outputfile]");
+            return;
         }
         final double EPS = Double.parseDouble(args[0]);
 
@@ -38,36 +38,45 @@ public class clique2_mk_benchmark_accuracy {
         r.close();
 
         long t0 = System.nanoTime();
-        Result res = runLaplacianRMC(adj, EPS);  // <- optimized O(Mk)
+        Result res = runLaplacianRMC(adj, EPS);
         long t1 = System.nanoTime();
+
+        // Add debug output
+        int clusterSize = 0;
+        for (int i = 1; i <= n; i++) {
+            if (res.bestMask[i]) clusterSize++;
+        }
+        System.err.println("L-RMC: Best SL = " + res.bestSL + ", cluster size = " + clusterSize + " / " + n);
 
         if (args.length >= 3) {
             try (PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(args[2])))) {
-                for (int i = 0; i < n; i++) {
-                    pw.println(i + " " + (res.bestMask[i] ? 1 : 0)); // i is 0-based in the current subgraph
+                // The harness expects 0-based node IDs from 0 to n-1.
+                // Internal nodes are 1 to n. We must convert.
+                for (int i = 1; i <= n; i++) { // Iterate over valid nodes 1..n
+                    // Write 0-based ID (i-1) and its membership status from bestMask[i]
+                    pw.println((i - 1) + " " + (res.bestMask[i] ? 1 : 0));
                 }
             }
         }
 
-        System.out.printf(Locale.US, "%.6f, %d%n", res.bestSL, res.bestRoot);
+        System.out.printf(Locale.US, "Best SL: %.6f, in component of node %d%n", res.bestSL, res.bestRoot);
         System.out.printf(Locale.US, "Runtime: %.3f ms%n", (t1 - t0) / 1_000_000.0);
     }
 
-    /** Optimized O(Mk) algorithm using reverse-peeling orientation + pred_sum pushes. */
     static Result runLaplacianRMC(List<Integer>[] adj, double EPS) {
         // -------- Phase 1: peeling --------
         int[] deg0 = new int[n + 1];
-        boolean[] bestMask = new boolean[n];
+        boolean[] bestMask = new boolean[n + 1];
         PriorityQueue<Pair> pq = new PriorityQueue<>();
 
         for (int i = 1; i <= n; i++) {
             deg0[i] = adj[i].size();
             pq.add(new Pair(i, deg0[i]));
         }
-        Deque<Integer> peelStack = new ArrayDeque<>(n); // store nodes only
+        Deque<Integer> peelStack = new ArrayDeque<>(n);
         while (!pq.isEmpty()) {
             Pair p = pq.poll();
-            if (p.degree != deg0[p.node]) continue; // stale
+            if (p.degree != deg0[p.node]) continue;
             peelStack.push(p.node);
             for (int v : adj[p.node]) {
                 if (deg0[v] > 0) {
@@ -75,19 +84,18 @@ public class clique2_mk_benchmark_accuracy {
                     pq.add(new Pair(v, deg0[v]));
                 }
             }
-            deg0[p.node] = 0;
+            deg0[p.node] = -1; // Mark as fully peeled
         }
 
-        // Build addition order and index
         int[] addOrder = new int[n];
         int[] idx = new int[n + 1];
         for (int t = 0; t < n; t++) {
-            int u = peelStack.pop(); // reverse-peeling (addition order)
+            int u = peelStack.pop();
             addOrder[t] = u;
             idx[u] = t;
         }
 
-        // -------- Phase 1.5: orient edges by idx and sort successors --------
+        // -------- Phase 1.5: orient edges --------
         @SuppressWarnings("unchecked")
         ArrayList<Integer>[] succ = new ArrayList[n + 1];
         @SuppressWarnings("unchecked")
@@ -96,14 +104,9 @@ public class clique2_mk_benchmark_accuracy {
 
         for (int u = 1; u <= n; u++) {
             for (int v : adj[u]) {
-                if (u < v) { // handle undirected edge once
-                    if (idx[u] < idx[v]) {
-                        succ[u].add(v);
-                        pred[v].add(u);
-                    } else {
-                        succ[v].add(u);
-                        pred[u].add(v);
-                    }
+                if (idx[u] < idx[v]) {
+                    succ[u].add(v);
+                    pred[v].add(u);
                 }
             }
         }
@@ -111,38 +114,26 @@ public class clique2_mk_benchmark_accuracy {
             if (succ[v].size() > 1) {
                 succ[v].sort(Comparator.comparingInt(w -> idx[w]));
             }
-            // pred[v] need not be sorted
         }
 
-        // -------- Phase 2: reverse reconstruction with O(k) per edge --------
-        DSU dsu = new DSU(n); // tracks parent, size, and Q (double)
-        int[] deg = new int[n + 1];          // current degree
-        long[] predSum = new long[n + 1];    // sum of degrees of predecessors
+        // -------- Phase 2: reverse reconstruction --------
+        DSU dsu = new DSU(n);
+        int[] deg = new int[n + 1];
+        long[] predSum = new long[n + 1];
 
         double bestSL = 0.0;
-        int bestRoot = 0;
+        int bestRoot = -1;
 
-        // helper: sum of degrees of active successors of v whose idx < T
         final SumSucc sumSucc = new SumSucc(succ, idx, deg);
 
         for (int u : addOrder) {
-            dsu.makeIfNeeded(u); // create singleton component
-            // Single-node score (Q=0)
-            {
-                int ru = dsu.find(u);
-                double sL = dsu.size[ru] / (dsu.Q[ru] + EPS);
-                if (sL > bestSL) { bestSL = sL; bestRoot = ru; }
-            }
-
-            long Su = 0L; // running sum over degrees of neighbors already attached to u
+            dsu.makeIfNeeded(u);
+            long Su = 0L;
             final int Tu = idx[u];
 
-            // connect u to all its predecessors (earlier neighbors)
             for (int v : pred[u]) {
                 long a = deg[u];
                 long b = deg[v];
-
-                // S_v = pred_sum[v] + sum of deg[w] for successors w of v with idx[w] < idx[u]
                 long Sv = predSum[v] + sumSucc.until(v, Tu);
 
                 long dQu = 2L * a * a - 2L * Su + a;
@@ -152,42 +143,52 @@ public class clique2_mk_benchmark_accuracy {
                 int ru = dsu.find(u);
                 int rv = dsu.find(v);
 
-                dsu.Q[ru] += (double) dQu;
-                dsu.Q[rv] += (double) dQv;
+                // Temporarily apply changes to copies to score before committing
+                double tempQ_ru = dsu.Q[ru] + dQu;
+                double tempQ_rv = dsu.Q[rv] + dQv;
 
-                int r;
+                int r_new;
+                double Q_new;
+                int size_new;
+
                 if (ru != rv) {
-                    r = dsu.union(ru, rv);
-                    dsu.Q[r] += (double) edgeTerm;
+                    if (dsu.size[ru] < dsu.size[rv]) { int t = ru; ru = rv; rv = t; } // Keep consistent parent
+                    r_new = ru;
+                    size_new = dsu.size[ru] + dsu.size[rv];
+                    Q_new = tempQ_ru + tempQ_rv + edgeTerm;
                 } else {
-                    r = ru;
-                    dsu.Q[r] += (double) edgeTerm;
+                    r_new = ru;
+                    size_new = dsu.size[ru];
+                    // dQu and dQv are double-counted on the same component, but edgeTerm is new
+                    Q_new = dsu.Q[ru] + dQu + dQv + edgeTerm;
                 }
 
-                // score after this edge activation
-                double sL = dsu.size[r] / (dsu.Q[r] + EPS);
+                double sL = size_new / (Q_new + EPS);
                 if (sL > bestSL) {
                     bestSL = sL;
-                    bestRoot = ru;
+                    bestRoot = r_new;
 
-                    // Snapshot membership of ru's component at this moment.
-                    // Simple approach: scan all nodes and compare DSU roots.
-                    // If this is slow, switch to the "union log + replay" variant.
+                    // Snapshot membership.
                     Arrays.fill(bestMask, false);
-                    for (int i = 0; i < n; i++) {
-                        if (dsu.find(i) == ru) bestMask[i] = true;
+                    for (int i = 1; i <= n; i++) { // Iterate over valid nodes 1..n
+                        // Check if node i belongs to the component(s) that are about to be merged
+                        if (dsu.find(i) == ru || dsu.find(i) == rv) {
+                            bestMask[i] = true;
+                        }
                     }
                 }
 
-                // degree increments
-                deg[u] += 1;
-                deg[v] += 1;
+                // Commit changes to DSU
+                dsu.union(u, v);
+                int r_final = dsu.find(u);
+                dsu.Q[r_final] = Q_new; // Update Q after merge
 
-                // push +1 to predSum of successors (outdegree ≤ k)
-                for (int y : succ[u]) predSum[y] += 1;
-                for (int y : succ[v]) predSum[y] += 1;
+                deg[u]++;
+                deg[v]++;
 
-                // maintain Su: add deg[v] AFTER its increment
+                for (int y : succ[u]) predSum[y]++;
+                for (int y : succ[v]) predSum[y]++;
+
                 Su += deg[v];
             }
         }

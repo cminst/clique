@@ -34,8 +34,8 @@ public class Table1Synthetic {
 
     // ---- Single Setting ----
 
-    static final double[] PINTRA_LIST = new double[]{0.20};
-    static final double[] PINTER_LIST = new double[]{1.5e-4};
+    static final double[] PINTRA_LIST = new double[]{0.40};
+    static final double[] PINTER_LIST = new double[]{1.5e-5};
     static final int TRIALS_PER_SETTING = 5;
 
     // ------------------------
@@ -51,7 +51,7 @@ public class Table1Synthetic {
     // L-RMC integration: update these names to match your build
     static String LRMC_MAIN_CLASS = "UsacoProbs.clique2_mk_benchmark_accuracy";
     static final String EXTRA_HEAP = "-Xmx16g";                        // adjust if needed
-    static final double LRMC_EPSILON = 1e-6;                           // same epsilon used in the paper
+    static final double LRMC_EPSILON = 0.001;                           // same epsilon used in the paper
 
     // Output
     static final Path OUT_CSV = Paths.get("table1_synthetic.csv");
@@ -413,6 +413,7 @@ public class Table1Synthetic {
 
         for (int it = 0; it < K; it++) {
             SubgraphView S = inducedSubgraph(G.adj, removed);
+            System.err.println("L-RMC iteration " + it + ": subgraph has " + S.adj.length + " nodes");
             if (S.adj.length == 0) break;
 
             // Write edge list in the same format as LRMCmkpaper expects: header then 1-based edges
@@ -470,19 +471,19 @@ public class Table1Synthetic {
                     if (s.isEmpty()) continue;
                     int sp = s.indexOf(' ');
                     if (sp <= 0) continue;
-                    // Read the 1-based ID from the file and convert it to 0-based
-                    int nid_1based = Integer.parseInt(s.substring(0, sp));
-                    int nid_0based = nid_1based - 1;
+                    // File already contains 0-based subgraph node IDs
+                    int nid_0based = Integer.parseInt(s.substring(0, sp));
                     int lab = Integer.parseInt(s.substring(sp + 1));
 
-                    // Use the correct 0-based index
                     if (lab == 1 && nid_0based >= 0 && nid_0based < S.oldId.length) {
                         comp.add(S.oldId[nid_0based]);
                     }
                 }
             }
             int[] c = comp.toArray();
-            if (c.length < 10) break;
+            System.err.println("L-RMC iteration " + it + ": found cluster of size " + c.length);
+            // if (c.length < 10) break;
+            if (c.length == 0) break;  // Only break if truly empty
             clusters.add(c);
             for (int v : c) removed[v] = true;
         }
