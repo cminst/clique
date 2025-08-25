@@ -51,6 +51,9 @@ public class clique2_mk_benchmark_accuracy {
 
     /** Optimized O(Mk) algorithm using reverse-peeling orientation + pred_sum pushes. */
     static Result runLaplacianRMC(List<Integer>[] adj, double EPS) {
+        // Initialize n from adjacency list
+        final int n = adj.length - 1;
+        
         // -------- Phase 1: peeling (same as before) --------
         int[] deg0 = new int[n + 1];
         PriorityQueue<Pair> pq = new PriorityQueue<>();
@@ -115,9 +118,23 @@ public class clique2_mk_benchmark_accuracy {
         double bestSL = 0.0;
         int bestRoot = 0;
         Set<Integer> bestComponent = new HashSet<>();
+        double bestScore = 0.0;
 
         // helper: sum of degrees of active successors of v whose idx < T
         final SumSucc sumSucc = new SumSucc(succ, idx, deg);
+
+        // helper: calculate RMC score (size * min_degree) for a component
+        java.util.function.Function<Integer, Double> calculateRMCScore = (root) -> {
+            int size = 0;
+            int minDeg = Integer.MAX_VALUE;
+            for (int i = 1; i <= n; i++) {
+                if (dsu.made[i] && dsu.find(i) == root) {
+                    size++;
+                    minDeg = Math.min(minDeg, deg[i]);
+                }
+            }
+            return size == 0 ? 0.0 : size * minDeg;
+        };
 
         for (int u : addOrder) {
             dsu.makeIfNeeded(u); // create singleton component
@@ -125,9 +142,11 @@ public class clique2_mk_benchmark_accuracy {
             {
                 int ru = dsu.find(u);
                 double sL = dsu.size[ru] / (dsu.Q[ru] + EPS);
+                double currentScore = calculateRMCScore.apply(ru);
                 if (sL > bestSL) {
                     bestSL = sL;
                     bestRoot = ru;
+                    bestScore = currentScore;
 
                     // Snapshot current component
                     bestComponent.clear();
@@ -171,9 +190,11 @@ public class clique2_mk_benchmark_accuracy {
 
                 // score after this edge activation
                 double sL = dsu.size[r] / (dsu.Q[r] + EPS);
+                double currentScore = calculateRMCScore.apply(r);
                 if (sL > bestSL) {
                     bestSL = sL;
                     bestRoot = r;
+                    bestScore = currentScore;
 
                     // Snapshot current component
                     bestComponent.clear();
@@ -198,6 +219,7 @@ public class clique2_mk_benchmark_accuracy {
         out.bestSL = bestSL;
         out.bestRoot = bestRoot;
         out.bestComponent = bestComponent;
+        out.bestScore = bestScore;
         return out;
     }
 
@@ -231,6 +253,7 @@ public class clique2_mk_benchmark_accuracy {
         double bestSL;
         int bestRoot;
         Set<Integer> bestComponent;
+        double bestScore;
     }
 
     static class Pair implements Comparable<Pair> {

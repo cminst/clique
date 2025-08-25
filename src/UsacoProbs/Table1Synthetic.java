@@ -125,7 +125,7 @@ public class Table1Synthetic {
         long start = System.nanoTime();
 
         clique2_mk_benchmark_accuracy.Result result =
-            clique2_mk_benchmark_accuracy.runLaplacianRMC(g.adj, g.n, eps);
+            clique2_mk_benchmark_accuracy.runLaplacianRMC(g.adj, eps);
 
         long end = System.nanoTime();
 
@@ -470,7 +470,7 @@ public class Table1Synthetic {
 
         for (double eps : epsilons) {
             clique2_mk_benchmark_accuracy.Result result =
-                clique2_mk_benchmark_accuracy.runLaplacianRMC(g.adj, g.n, eps);
+                clique2_mk_benchmark_accuracy.runLaplacianRMC(g.adj, eps);
 
             if (result.bestComponent != null && !result.bestComponent.isEmpty()) {
                 Set<Integer> found = result.bestComponent;
@@ -502,7 +502,7 @@ public class Table1Synthetic {
 
         for (double eps : epsilons) {
             clique2_mk_benchmark_accuracy.Result result =
-                clique2_mk_benchmark_accuracy.runLaplacianRMC(g.adj, g.n, eps);
+                clique2_mk_benchmark_accuracy.runLaplacianRMC(g.adj, eps);
 
             if (result.bestComponent != null && !result.bestComponent.isEmpty()) {
                 Set<Integer> found = result.bestComponent;
@@ -534,19 +534,56 @@ public class Table1Synthetic {
         }
     }
 
-    // Modified main to include this debug
+    // Modified main: sweep parameters and write CSV like the reference file
     public static void main(String[] args) {
-        Random rand = new Random(42);
+        try {
+            runAndWriteCsv();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-        System.out.println("Scenario,Method,Precision,Recall,F1,FoundSize,MinDeg,AvgDeg,Density,Runtime");
+    private static void runAndWriteCsv() throws IOException {
+        final int nTotal = 2000;
+        final double eps = 10000.0;
 
-        // Only test the broken case
-        SyntheticGraph twoClusters = generateTwoSeparateClusters(rand);
+        // Parameter sweep
+        int[] clusterSizes = {20, 50, 100};
+        double[] pIns = {0.6, 0.8, 0.9};
+        double[] pOuts = {0.01, 0.03, 0.05, 0.07, 0.10, 0.15};
 
-        debugClusters(twoClusters, "TwoClusters");
-        debugLRMCSteps(twoClusters, "TwoClusters");
+        String outPath = String.format(
+                java.util.Locale.US,
+                "UsacoProbs/L-RMC-Versus-Other-Graph_Algs-nTotal=%d,pBackground=%.3f,eps=%d.csv",
+                nTotal, 0.002, (int) eps);
 
-        testAllMethods("TwoClusters", twoClusters, 500);
+        try (java.io.PrintWriter w = new java.io.PrintWriter(new java.io.BufferedWriter(new java.io.FileWriter(outPath)))) {
+            w.println("Method,ClusterSize,InternalDensity,ExternalDensity,Precision,Recall,F1,Density,RMCScore,Runtime");
+
+            Random rand = new Random(42);
+            for (int k : clusterSizes) {
+                for (double pIn : pIns) {
+                    for (double pOut : pOuts) {
+                        SyntheticGraph g = generatePlantedClusterGraph(nTotal, k, pIn, pOut, rand);
+
+                        EvaluationResult lrmc = runSingleLRMC(g, eps);
+                        EvaluationResult kcore = runBestKCore(g);
+                        EvaluationResult densest = runDensestSingle(g);
+
+                        writeRow(w, "L-RMC", k, pIn, pOut, lrmc);
+                        writeRow(w, "k-core", k, pIn, pOut, kcore);
+                        writeRow(w, "Densest", k, pIn, pOut, densest);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void writeRow(java.io.PrintWriter w, String method, int k, double pIn, double pOut, EvaluationResult r) {
+        long rmcScore = (long) (r.found.size() * r.minDeg);
+        w.printf(java.util.Locale.US,
+                "%s,%d,%.1f,%.2f,%.3f,%.3f,%.3f,%.3f,%d,%d%n",
+                method, k, pIn, pOut, r.precision, r.recall, r.f1, r.density, rmcScore, r.runtimeMs);
     }
 
     // Scenario 1: Star graph vs clique - L-RMC should prefer the clique
@@ -631,6 +668,34 @@ public class Table1Synthetic {
             g.addEdge(i, 100 + rand.nextInt(5));
         }
 
+        return g;
+    }
+
+    // New: planted single cluster with background noise, parameterized by pIn and pBackground
+    static SyntheticGraph generatePlantedClusterGraph(int nTotal, int clusterSize, double pIn, double pBackground, Random rand) {
+        SyntheticGraph g = new SyntheticGraph(nTotal);
+        for (int i = 1; i <= clusterSize; i++) g.plantedCluster.add(i);
+
+        // Intra-cluster edges with probability pIn
+        for (int i = 1; i <= clusterSize; i++) {
+            for (int j = i + 1; j <= clusterSize; j++) {
+                if (rand.nextDouble() < pIn) g.addEdge(i, j);
+            }
+        }
+
+        // Cluster-to-background edges with probability pBackground
+        for (int i = 1; i <= clusterSize; i++) {
+            for (int j = clusterSize + 1; j <= nTotal; j++) {
+                if (rand.nextDouble() < pBackground) g.addEdge(i, j);
+            }
+        }
+
+        // Background-background edges with probability pBackground
+        for (int i = clusterSize + 1; i <= nTotal; i++) {
+            for (int j = i + 1; j <= nTotal; j++) {
+                if (rand.nextDouble() < pBackground) g.addEdge(i, j);
+            }
+        }
         return g;
     }
 
