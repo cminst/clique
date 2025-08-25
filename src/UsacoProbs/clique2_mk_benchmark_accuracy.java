@@ -35,7 +35,7 @@ public class clique2_mk_benchmark_accuracy {
         r.close();
 
         long t0 = System.nanoTime();
-        Result res = runLaplacianRMC(adj, EPS);  // <- optimized O(Mk)
+        Result res = runLaplacianRMC(adj, EPS);
         long t1 = System.nanoTime();
 
         // Print component nodes on a separate line
@@ -105,7 +105,6 @@ public class clique2_mk_benchmark_accuracy {
             if (succ[v].size() > 1) {
                 succ[v].sort(Comparator.comparingInt(w -> idx[w]));
             }
-            // pred[v] need not be sorted
         }
 
         // -------- Phase 2: reverse reconstruction with O(k) per edge --------
@@ -143,7 +142,7 @@ public class clique2_mk_benchmark_accuracy {
             long Su = 0L; // running sum over degrees of neighbors already attached to u
             final int Tu = idx[u];
 
-            // connect u to all its predecessors (earlier neighbors)
+            // connect u to all its predecessors
             for (int v : pred[u]) {
                 long a = deg[u];
                 long b = deg[v];
@@ -185,15 +184,12 @@ public class clique2_mk_benchmark_accuracy {
                     }
                 }
 
-                // degree increments
                 deg[u] += 1;
                 deg[v] += 1;
 
-                // push +1 to predSum of successors (outdegree ≤ k)
                 for (int y : succ[u]) predSum[y] += 1;
                 for (int y : succ[v]) predSum[y] += 1;
 
-                // maintain Su: add deg[v] AFTER its increment
                 Su += deg[v];
             }
         }

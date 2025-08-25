@@ -5,6 +5,7 @@ from torch_geometric.nn import GCNConv
 import torch_geometric.transforms as T
 import numpy as np
 import argparse
+import networkx as nx
 
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, dropout=0.5):
@@ -29,16 +30,53 @@ def evaluate_integration_methods(dataset_name='Cora'):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data = data.to(device)
 
-    # L-RMC component (convert from 1-indexed)
-    lrmc_nodes_from_java = "578 644 2437 2631 2633 1676 911 1936 84 469 537 538 3227 1693 2526 2975 2976 803 111 2607 3056 2035 2869 1526 632 1593 2236 3004"
+    # L-RMC component (convert from 1-indexed Java IDs back to PyG indices)
+    lrmc_nodes_java = "1680 2883 901 617 1578 1103"
 
-    lrmc_nodes_from_java = [int(x) for x in lrmc_nodes_from_java.split()]
+    # Load the saved remap dictionary from the benchmark script
+    import pickle
+    remap_filename = f"{dataset_name.lower()}_remap.pkl"
+    with open(remap_filename, "rb") as f:
+        remap_data = pickle.load(f)
+    nodes_sorted = remap_data['nodes_sorted']
 
-    nodes_sorted = sorted(data.nodes())
-    remap = {old_id: i + 1 for i, old_id in enumerate(nodes_sorted)}
+    # Convert Java 1-indexed IDs back to PyG indices
+    lrmc_nodes_java_ids = [int(x) for x in lrmc_nodes_java.split()]
+    lrmc_nodes = [nodes_sorted[j-1] for j in lrmc_nodes_java_ids]
 
-    # given Java id j in 1..N, the original PyG id is nodes_sorted[j-1]
-    lrmc_nodes = [nodes_sorted[j-1] for j in lrmc_nodes_from_java]
+    print(f"Loaded {len(lrmc_nodes)} L-RMC nodes with correct ID mapping")
+    print(f"Java IDs: {lrmc_nodes_java_ids[:5]}...")
+    print(f"PyG IDs: {lrmc_nodes[:5]}...")
+
+    # Verify connectivity and S(C) on correct nodes
+    lrmc_set = set(lrmc_nodes)
+    print(f"\nVerification:")
+    print(f"L-RMC component size: {len(lrmc_set)}")
+
+    # Check connectivity within the component
+    G = nx.Graph()
+    edges = data.edge_index.t().tolist()
+    G.add_edges_from(edges)
+
+    # Create subgraph of L-RMC component
+    lrmc_subgraph = G.subgraph(lrmc_nodes)
+    internal_edges = lrmc_subgraph.number_of_edges()
+    possible_edges = len(lrmc_nodes) * (len(lrmc_nodes) - 1) // 2
+    density = internal_edges / possible_edges if possible_edges > 0 else 0
+
+    print(f"Internal edges in L-RMC: {internal_edges}")
+    print(f"Possible edges: {possible_edges}")
+    print(f"Density: {density:.4f}")
+
+    # Calculate S(C) - sum of degrees within component
+    s_c = 0
+    for node in lrmc_nodes:
+        neighbors = set(G.neighbors(node))
+        internal_neighbors = neighbors & lrmc_set
+        s_c += len(internal_neighbors)
+
+    print(f"S(C): {s_c}")
+    print(f"Average internal degree: {s_c / len(lrmc_nodes):.2f}")
 
     integration_methods = {
         "baseline": "no_modification",

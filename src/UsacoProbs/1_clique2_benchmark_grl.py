@@ -27,6 +27,12 @@ def debug_lrmc_basic(dataset_name='Cora'):
     filename = f"{dataset_name.lower()}_simple.txt"
     nodes_sorted = sorted(G.nodes())
     remap = {old_id: i + 1 for i, old_id in enumerate(nodes_sorted)}
+    
+    # Save remap dictionary for use in integration script
+    remap_filename = f"{dataset_name.lower()}_remap.pkl"
+    import pickle
+    with open(remap_filename, "wb") as f:
+        pickle.dump({'nodes_sorted': nodes_sorted, 'remap': remap}, f)
 
     with open(filename, "w") as f:
         f.write(f"{G.number_of_nodes()} {G.number_of_edges()}\n")
