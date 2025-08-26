@@ -30,6 +30,47 @@ public class Table1Synthetic {
         }
     }
 
+    static class AggregatedResult {
+        double precision, recall, f1;
+        double minDeg, avgDeg, density;
+        long rmcScore;
+        long runtimeMs;
+        int count;
+
+        AggregatedResult() {
+            precision = recall = f1 = 0;
+            minDeg = avgDeg = density = 0;
+            rmcScore = 0;
+            runtimeMs = 0;
+            count = 0;
+        }
+
+        void addResult(EvaluationResult r) {
+            precision += r.precision;
+            recall += r.recall;
+            f1 += r.f1;
+            minDeg += r.minDeg;
+            avgDeg += r.avgDeg;
+            density += r.density;
+            rmcScore += r.found.size() * r.minDeg;
+            runtimeMs += r.runtimeMs;
+            count++;
+        }
+
+        void average() {
+            if (count > 0) {
+                precision /= count;
+                recall /= count;
+                f1 /= count;
+                minDeg /= count;
+                avgDeg /= count;
+                density /= count;
+                rmcScore /= count;
+                runtimeMs /= count;
+            }
+        }
+    }
+
     static class EvaluationResult {
         Set<Integer> found;
         double precision, recall, f1;
@@ -537,6 +578,8 @@ public class Table1Synthetic {
     // Modified main: sweep parameters and write CSV like the reference file
     public static void main(String[] args) {
         double eps = 10; // Default epsilon value
+        int numRuns = 10; // Default number of runs
+        
         if (args.length > 0) {
             try {
                 eps = Double.parseDouble(args[0]);
@@ -546,13 +589,13 @@ public class Table1Synthetic {
         }
         
         try {
-            runAndWriteCsv(eps);
+            runAndWriteCsv(eps, numRuns);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static void runAndWriteCsv(double eps) throws IOException {
+    private static void runAndWriteCsv(double eps, int numRuns) throws IOException {
         final int nTotal = 2500;
 
         // Parameter sweep
@@ -568,25 +611,49 @@ public class Table1Synthetic {
         try (java.io.PrintWriter w = new java.io.PrintWriter(new java.io.BufferedWriter(new java.io.FileWriter(outPath)))) {
             w.println("Method,ClusterSize,InternalDensity,ExternalDensity,Precision,Recall,F1,Density,RMCScore,Runtime");
 
-            Random rand = new Random(42);
             for (int k : clusterSizes) {
                 for (double pIn : pIns) {
                     for (double pOut : pOuts) {
-                        SyntheticGraph g = generatePlantedClusterGraph(nTotal, k, pIn, pOut, rand);
+                        // Run multiple times with different seeds
+                        AggregatedResult lrmcAgg = new AggregatedResult();
+                        AggregatedResult kcoreAgg = new AggregatedResult();
+                        AggregatedResult densestAgg = new AggregatedResult();
 
-                        EvaluationResult lrmc = runSingleLRMC(g, eps);
-                        EvaluationResult kcore = runBestKCore(g);
-                        EvaluationResult densest = runDensestSingle(g);
+                        for (int run = 0; run < numRuns; run++) {
+                            int seed = 42 + run;
+                            Random rand = new Random(seed);
+                            SyntheticGraph g = generatePlantedClusterGraph(nTotal, k, pIn, pOut, rand);
 
-                        writeRow(w, "L-RMC", k, pIn, pOut, lrmc);
-                        writeRow(w, "k-core", k, pIn, pOut, kcore);
-                        writeRow(w, "Densest", k, pIn, pOut, densest);
-                        System.out.printf("Finished instance: k=%d, pIn=%.1f, pOut=%.2f%n", k, pIn, pOut);
+                            EvaluationResult lrmc = runSingleLRMC(g, eps);
+                            EvaluationResult kcore = runBestKCore(g);
+                            EvaluationResult densest = runDensestSingle(g);
+
+                            lrmcAgg.addResult(lrmc);
+                            kcoreAgg.addResult(kcore);
+                            densestAgg.addResult(densest);
+                        }
+
+                        // Average the results
+                        lrmcAgg.average();
+                        kcoreAgg.average();
+                        densestAgg.average();
+
+                        // Write averaged results
+                        writeAggregatedRow(w, "L-RMC", k, pIn, pOut, lrmcAgg);
+                        writeAggregatedRow(w, "k-core", k, pIn, pOut, kcoreAgg);
+                        writeAggregatedRow(w, "Densest", k, pIn, pOut, densestAgg);
+                        System.out.printf("Finished instance: k=%d, pIn=%.1f, pOut=%.2f (averaged over %d runs)%n", k, pIn, pOut, numRuns);
                         System.out.flush();
                     }
                 }
             }
         }
+    }
+
+    private static void writeAggregatedRow(java.io.PrintWriter w, String method, int k, double pIn, double pOut, AggregatedResult r) {
+        w.printf(java.util.Locale.US,
+                "%s,%d,%.1f,%.2f,%.3f,%.3f,%.3f,%.3f,%d,%d%n",
+                method, k, pIn, pOut, r.precision, r.recall, r.f1, r.density, r.rmcScore, r.runtimeMs);
     }
 
     private static void writeRow(java.io.PrintWriter w, String method, int k, double pIn, double pOut, EvaluationResult r) {
