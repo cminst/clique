@@ -536,22 +536,29 @@ public class Table1Synthetic {
 
     // Modified main: sweep parameters and write CSV like the reference file
     public static void main(String[] args) {
+        double eps = 10; // Default epsilon value
+        if (args.length > 0) {
+            try {
+                eps = Double.parseDouble(args[0]);
+            } catch (NumberFormatException e) {
+                System.err.println("Invalid epsilon value. Using default value of 10.");
+            }
+        }
+        
         try {
-            runAndWriteCsv();
+            runAndWriteCsv(eps);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static void runAndWriteCsv() throws IOException {
+    private static void runAndWriteCsv(double eps) throws IOException {
         final int nTotal = 2500;
-        // OLD: final double eps = 10000.0;
-        final double eps = 100;
 
         // Parameter sweep
         int[] clusterSizes = {100, 150, 200};
-        double[] pIns = {0.6, 0.8, 0.9};
-        double[] pOuts = {0.15, 0.25, 0.3, 0.4};
+        double[] pIns = {0.6, 0.7, 0.8, 0.9};
+        double[] pOuts = {0.25, 0.35, 0.45};
 
         String outPath = String.format(
                 java.util.Locale.US,
