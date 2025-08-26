@@ -11,5 +11,3 @@ java UsacoProbs.Table1Synthetic 1e3
 java UsacoProbs.Table1Synthetic 1e4
 java UsacoProbs.Table1Synthetic 1e5
 java UsacoProbs.Table1Synthetic 1e6
-
-
