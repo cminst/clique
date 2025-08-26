@@ -544,18 +544,19 @@ public class Table1Synthetic {
     }
 
     private static void runAndWriteCsv() throws IOException {
-        final int nTotal = 2000;
-        final double eps = 10000.0;
+        final int nTotal = 2500;
+        // OLD: final double eps = 10000.0;
+        final double eps = 100;
 
         // Parameter sweep
         int[] clusterSizes = {20, 50, 100};
         double[] pIns = {0.6, 0.8, 0.9};
-        double[] pOuts = {0.01, 0.03, 0.05, 0.07, 0.10, 0.15};
+        double[] pOuts = {0.15, 0.25, 0.3, 0.4};
 
         String outPath = String.format(
                 java.util.Locale.US,
-                "UsacoProbs/L-RMC-Versus-Other-Graph_Algs-nTotal=%d,pBackground=%.3f,eps=%d.csv",
-                nTotal, 0.002, (int) eps);
+                "UsacoProbs/Hard-nTotal=%d,pBackground=%.3f,eps=%.1e.csv",
+                nTotal, 0.002, eps);
 
         try (java.io.PrintWriter w = new java.io.PrintWriter(new java.io.BufferedWriter(new java.io.FileWriter(outPath)))) {
             w.println("Method,ClusterSize,InternalDensity,ExternalDensity,Precision,Recall,F1,Density,RMCScore,Runtime");
@@ -573,6 +574,8 @@ public class Table1Synthetic {
                         writeRow(w, "L-RMC", k, pIn, pOut, lrmc);
                         writeRow(w, "k-core", k, pIn, pOut, kcore);
                         writeRow(w, "Densest", k, pIn, pOut, densest);
+                        System.out.printf("Finished instance: k=%d, pIn=%.1f, pOut=%.2f%n", k, pIn, pOut);
+                        System.out.flush();
                     }
                 }
             }

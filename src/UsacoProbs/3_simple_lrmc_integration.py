@@ -30,6 +30,9 @@ def evaluate_integration_methods(dataset_name='Cora'):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data = data.to(device)
 
+    print(f"Total number of edges: {data.num_edges}")
+    print(f"Total number of nodes: {data.num_nodes}")
+
     # L-RMC component (convert from 1-indexed Java IDs back to PyG indices)
     lrmc_nodes_java = "1680 2883 901 617 1578 1103"
 
@@ -50,7 +53,7 @@ def evaluate_integration_methods(dataset_name='Cora'):
 
     # Verify connectivity and S(C) on correct nodes
     lrmc_set = set(lrmc_nodes)
-    print(f"\nVerification:")
+    print("\nVerification:")
     print(f"L-RMC component size: {len(lrmc_set)}")
 
     # Check connectivity within the component
