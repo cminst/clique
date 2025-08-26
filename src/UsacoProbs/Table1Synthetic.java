@@ -549,7 +549,7 @@ public class Table1Synthetic {
         final double eps = 100;
 
         // Parameter sweep
-        int[] clusterSizes = {20, 50, 100};
+        int[] clusterSizes = {100, 150, 200};
         double[] pIns = {0.6, 0.8, 0.9};
         double[] pOuts = {0.15, 0.25, 0.3, 0.4};
 
