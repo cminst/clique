@@ -555,8 +555,8 @@ public class Table1Synthetic {
 
         String outPath = String.format(
                 java.util.Locale.US,
-                "UsacoProbs/Hard-nTotal=%d,pBackground=%.3f,eps=%.1e.csv",
-                nTotal, 0.002, eps);
+                "UsacoProbs/Hard-nTotal=%d,eps=%.1e.csv",
+                nTotal, eps);
 
         try (java.io.PrintWriter w = new java.io.PrintWriter(new java.io.BufferedWriter(new java.io.FileWriter(outPath)))) {
             w.println("Method,ClusterSize,InternalDensity,ExternalDensity,Precision,Recall,F1,Density,RMCScore,Runtime");
