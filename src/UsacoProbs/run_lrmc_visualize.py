@@ -75,7 +75,10 @@ class GraphVisualizer:
 
     def clear_terminal(self):
         """Clear the terminal screen."""
-        os.system('clear' if os.name == 'posix' else 'cls')
+        if os.name == 'posix':
+            subprocess.run(['clear'])
+        else:
+            subprocess.run(['cls'], shell=True)
 
     def display_settings(self):
         """Display current settings using rich formatting."""
