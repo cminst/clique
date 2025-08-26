@@ -26,3 +26,5 @@ else
     java UsacoProbs.Table1Synthetic 1e5
     java UsacoProbs.Table1Synthetic 1e6
 fi
+
+# Remaining: [1e-4, 1e-3, 1e-2, 0.01, 1, 10, 1e2, 1e3, 1e4, 1e5, 1e6]
