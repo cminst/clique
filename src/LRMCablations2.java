@@ -1,6 +1,10 @@
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 /**
@@ -26,11 +30,9 @@ class LRMCablations2 {
     // Ablation grid
     static final double[] EPSILONS = {1e-8, 1e-6, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4, 20000, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e12, 1e13, 1e14};
 
-    enum AlphaKind {DIAM, INV_SQRT_LAMBDA2}
-
     public static void main(String[] args) throws Exception {
         if (args.length < 3) {
-            System.err.println("Usage: java LRMCmkpaper <path/to/cora.content> <path/to/cora.cites> <output_csv>");
+            System.err.println("Usage: java LRMCablations2 <path/to/cora.content> <path/to/cora.cites> <output_csv> <output_seeds> <alpha_type> <eps>");
             return;
         }
         final Path contentPath = Paths.get(args[0]);
@@ -49,15 +51,25 @@ class LRMCablations2 {
         List<clique2_ablations.SnapshotDTO> snaps = clique2_ablations.runLaplacianRMC(G.adj1Based);
         System.out.printf(Locale.US, "# Reconstruction snapshots: %d%n", snaps.size());
 
-        // 3) Evaluate accuracy for every (epsilon, alpha)
+        // 3) Either sweep for the paper CSV, or compute a single row for export mode
         List<ResultRow> outRows = new ArrayList<>();
-        for (double eps : EPSILONS) {
-            for (AlphaKind aKind : AlphaKind.values()) {
-                double acc = labelAccuracyFromSnapshots(snaps, G, eps, aKind);
-                String alphaName = (aKind == AlphaKind.DIAM) ? "diam(C)" : "1/sqrt(lambda2)";
-                outRows.add(new ResultRow(eps, alphaName, acc, G.n, G.m));
-                System.out.printf(Locale.US, "epsilon=%.0e, alpha=%s, accuracy=%.4f%n",
-                        eps, alphaName, acc);
+        if (outSeeds != null) {
+            // Single point using CLI epsilon/alpha
+            double acc = labelAccuracyFromSnapshots(snaps, G, eps, alphaKind);
+            String alphaName = (alphaKind == AlphaKind.DIAM) ? "diam(C)" : "1/sqrt(lambda2)";
+            outRows.add(new ResultRow(eps, alphaName, acc, G.n, G.m));
+            System.out.printf(Locale.US, "epsilon=%.0e, alpha=%s, accuracy=%.4f%n",
+                    eps, alphaName, acc);
+        } else {
+            // Full sweep for ablations
+            for (double epsGrid : EPSILONS) {
+                for (AlphaKind aKind : AlphaKind.values()) {
+                    double acc = labelAccuracyFromSnapshots(snaps, G, epsGrid, aKind);
+                    String alphaName = (aKind == AlphaKind.DIAM) ? "diam(C)" : "1/sqrt(lambda2)";
+                    outRows.add(new ResultRow(epsGrid, alphaName, acc, G.n, G.m));
+                    System.out.printf(Locale.US, "epsilon=%.0e, alpha=%s, accuracy=%.4f%n",
+                            epsGrid, alphaName, acc);
+                }
             }
         }
 
@@ -164,15 +176,6 @@ class LRMCablations2 {
         int u = farthestInComponent(start, adj1, inC).node;
         BFSResult r = farthestInComponent(u, adj1, inC);
         return r.dist;
-    }
-
-    static class BFSResult {
-        final int node, dist;
-
-        BFSResult(int node, int dist) {
-            this.node = node;
-            this.dist = dist;
-        }
     }
 
     static BFSResult farthestInComponent(int src0, List<Integer>[] adj1, boolean[] inC) {
@@ -362,7 +365,6 @@ class LRMCablations2 {
         return G;
     }
 
-
     // Parse alpha kind from string
     static AlphaKind parseAlpha(String s) {
         String t = s.trim().toUpperCase(Locale.ROOT);
@@ -391,7 +393,7 @@ class LRMCablations2 {
             final int k = nodes.length;
             if (k == 0) continue;
             for (int u : nodes) inC[u] = true;
-            final double dbar = s.sumDegIn / Math.max(1.0, (double) k);
+            final double dbar = s.sumDegIn / Math.max(1.0, k);
             final double Q = s.Q;
             final double alpha;
             if (alphaKind == AlphaKind.DIAM) {
@@ -482,6 +484,16 @@ class LRMCablations2 {
         return sb.toString();
     }
 
+    enum AlphaKind {DIAM, INV_SQRT_LAMBDA2}
+
+    static class BFSResult {
+        final int node, dist;
+
+        BFSResult(int node, int dist) {
+            this.node = node;
+            this.dist = dist;
+        }
+    }
 
     // ---------- Data holders ----------
     static final class GraphData {

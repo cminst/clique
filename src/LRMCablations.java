@@ -21,11 +21,28 @@ public class LRMCablations {
     static final long SEED = 123456789L;
 
     // ---------------- new: Cora ablations + calibration settings ----------------
-    static final double[] EPS_SWEEP = {1e-8, 1e-6, 1e-4};
+    static final double[] EPS_SWEEP = {1e-8, 1e-6, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4, 20000, 1e5, 1e6, 1e7, 1e8, 1e9};
     static final String[] ALPHAS = {"diam", "invsqrt_lambda2"};
     static final int TOP_K_SEEDS = 100;      // keep fixed across runs for clean comparisons
     static final int MAX_L2_ITERS = 40;      // spectral estimate iterations
-    static final boolean EXPORT_SEEDS = true;// write seed lists for each setting
+    static final boolean EXPORT_SEEDS = true; // write seed lists for each setting
+
+    // Sensitivity helpers
+    static final boolean USE_COVERAGE_TARGET = true;   // pick seeds until target coverage (union) is reached
+    static final double  COVERAGE_TARGET     = 0.15;   // 40% of nodes
+    static final double  OVERLAP_NMS         = 0.80;   // skip seed if Jaccard overlap > 0.8 with any already chosen
+
+    // Focus the ablation on near-zero-Q snapshots
+    static final boolean LOWQ_ONLY = true;      // set true to filter snapshots
+    // Choose one of the two selection modes below:
+    static final Double LOWQ_SQRT_ABS = null;   // e.g., 1.0 means keep snapshots with sqrt(Q) <= 1.0
+    static final double LOWQ_PERCENTILE = 0.05; // if LOWQ_SQRT_ABS == null, keep the smallest 5% sqrt(Q)
+
+    static final double L2_FLOOR = 1e-3;  // try 1e-3 first; you can tune
+    static final boolean USE_CALIBRATED = false; // if false, rank by SL = nC/(Q+eps)
+
+    static final boolean USE_NEAREST_SEED_ASSIGNMENT = true; // assign remaining nodes by nearest seed
+    static final int     MAX_HOPS_NEAREST   = 2;      // only assign nodes within this hop distance
 
     static String clique2Main;
     static String outputCsvFile;
@@ -33,9 +50,9 @@ public class LRMCablations {
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
             System.err.println("Usage:\n" +
-                    "  java LRMCmkpaper <CLIQUE2_MAIN> <output_csv_file>\n" +
+                    "  java LRMCablations <CLIQUE2_MAIN> <output_csv_file>\n" +
                     "  or\n" +
-                    "  java LRMCmkpaper cora <cora.content> <cora.cites> <ablations_out_csv>\n");
+                    "  java LRMCablations cora <cora.content> <cora.cites> <ablations_out_csv>\n");
             return;
         }
 
@@ -71,40 +88,99 @@ public class LRMCablations {
 
         // L-RMC reconstruction snapshots (independent of epsilon)
         System.out.println("[CORA] Building degeneracy order and reconstruction snapshots...");
-        Reconstruction recon = buildReconstructionSnapshots(cora.adj);
+
+        // 0->1 based adapter for clique2_ablations
+        @SuppressWarnings("unchecked")
+        List<Integer>[] adj1 = new ArrayList[cora.n + 1];
+        for (int i = 1; i <= cora.n; i++) adj1[i] = new ArrayList<>();
+        for (int u = 0; u < cora.n; u++) {
+            for (int v : cora.adj[u]) adj1[u + 1].add(v + 1);
+        }
+        List<clique2_ablations.SnapshotDTO> dtos = clique2_ablations.runLaplacianRMC(adj1);
+
+        // convert to your Reconstruction
+        Reconstruction recon = new Reconstruction();
+        for (clique2_ablations.SnapshotDTO dto : dtos) {
+            recon.snaps.add(new Snapshot(dto.nodes, dto.nodes.length, dto.sumDegIn, dto.Q));
+        }
+
         System.out.printf(Locale.US, "[CORA] captured %d snapshots\n", recon.snaps.size());
+
+        boolean[] allow = null;
+        if (LOWQ_ONLY) {
+            allow = lowQMask(recon);  // builds mask by abs threshold or percentile
+        }
+
+        // after you build `allow`
+        List<Double> alphas = new ArrayList<>();
+        List<Double> dbars = new ArrayList<>();
+        for (int idx = 0; idx < recon.snaps.size(); idx++) {
+            if (allow != null && !allow[idx]) continue;
+            Snapshot s = recon.snaps.get(idx);
+            if (s.nC <= 1) continue;
+            LocalSubgraph g = buildLocal(cora.adj, s.nodes);
+            int diam = graphDiameter(g);
+            alphas.add((double)Math.max(1, diam));
+            dbars.add(s.sumDegIn / (double) s.nC);
+        }
+        Collections.sort(alphas); Collections.sort(dbars);
+        double aMed = alphas.get(alphas.size()/2), aIQR = alphas.get((int)(0.75*alphas.size())) - alphas.get((int)(0.25*alphas.size()));
+        double dMed = dbars.get(dbars.size()/2), dIQR = dbars.get((int)(0.75*dbars.size())) - dbars.get((int)(0.25*dbars.size()));
+        System.out.printf(Locale.US, "[DBG] alpha(diam) median=%.3f IQR=%.3f   dbar median=%.3f IQR=%.3f%n", aMed, aIQR, dMed, dIQR);
 
         // Evaluate ablations across epsilon and alpha
         Path out = Paths.get(outCsv);
         try (BufferedWriter w = Files.newBufferedWriter(out, StandardCharsets.UTF_8)) {
-            w.write("epsilon,alpha,K,coverage_pct,accuracy,macro_f1\n");
+            w.write("epsilon,alpha,K,coverage_pct,accuracy,macro_f1,assigned_pct,covered_acc,selected_seeds\n");
 
             for (double eps : EPS_SWEEP) {
                 for (String alphaName : ALPHAS) {
                     System.out.printf(Locale.US, "[CORA] eps=%.1e alpha=%s ranking seeds...\n", eps, alphaName);
-                    List<RankedSeed> seeds = rankSeeds(cora, recon, eps, alphaName);
+                    List<RankedSeed> seeds = rankSeedsFiltered(cora, recon, eps, alphaName, allow);
 
-                    // choose top K
-                    int K = Math.min(TOP_K_SEEDS, seeds.size());
-                    List<RankedSeed> topSeeds = new ArrayList<>(seeds.subList(0, K));
+                    // choose seeds either by fixed K or by coverage target with NMS
+                    List<RankedSeed> chosen;
+                    int K;
+                    if (USE_COVERAGE_TARGET) {
+                        chosen = selectSeedsByCoverageNMS(seeds, cora.n, COVERAGE_TARGET, OVERLAP_NMS);
+                        K = chosen.size();
+                    } else {
+                        K = Math.min(TOP_K_SEEDS, seeds.size());
+                        chosen = new ArrayList<>(seeds.subList(0, K));
+                    }
+
+                    double seedCoverage = computeUnionCoverage(chosen, cora.n);
 
                     // export seed lists if requested
                     if (EXPORT_SEEDS) {
                         String base = String.format(Locale.US, "seeds_eps%.0e_%s_K%d.txt", eps, alphaName, K);
                         Path seedFile = out.getParent() == null ? Paths.get(base) : out.getParent().resolve(base);
-                        exportSeeds(seedFile, topSeeds, cora);
+                        exportSeeds(seedFile, chosen, cora);
                     }
 
-                    // compute baseline accuracy by letting seeds vote per node
-                    EvalResult er = evaluateComponentMajority(cora, topSeeds);
+                    // evaluate with nearest-seed assignment (multi-source BFS) or simple component-majority
+                    EvalResult er = USE_NEAREST_SEED_ASSIGNMENT
+                            ? evaluateNearestSeed(cora, chosen, MAX_HOPS_NEAREST)
+                            : evaluateComponentMajority(cora, chosen);
 
-                    w.write(String.format(Locale.US, "%.3g,%s,%d,%.2f,%.4f,%.4f\n",
-                            eps, alphaName, K, 100.0 * er.coverage, er.accuracy, er.macroF1));
+                    w.write(String.format(Locale.US, "%.3g,%s,%d,%.2f,%.4f,%.4f,%.2f,%.4f,%d\n",
+                            eps, alphaName, K, 100.0 * seedCoverage, er.accuracy, er.macroF1, 100.0 * er.assignedPct, er.coveredAcc, K));
                     w.flush();
 
-                    System.out.printf(Locale.US, "[CORA] eps=%.1e alpha=%s K=%d coverage=%.1f%% acc=%.3f macroF1=%.3f\n",
-                            eps, alphaName, K, 100.0 * er.coverage, er.accuracy, er.macroF1);
+                    System.out.printf(Locale.US, "[CORA] eps=%.1e alpha=%s K=%d cov=%.1f%% acc=%.3f macroF1=%.3f assigned=%.1f%% covered_acc=%.3f\n",
+                            eps, alphaName, K, 100.0 * seedCoverage, er.accuracy, er.macroF1, 100.0 * er.assignedPct, er.coveredAcc);
                 }
+
+                double[] sQ = new double[recon.snaps.size()];
+                for (int i = 0; i < sQ.length; i++) sQ[i] = Math.sqrt(Math.max(0.0, recon.snaps.get(i).Q));
+                Arrays.sort(sQ);
+                System.out.printf(Locale.US, "[DBG] sqrt(Q) min=%.3g  median=%.3g  p90=%.3g  max=%.3g%n",
+                        sQ[0], sQ[sQ.length/2], sQ[(int)(0.9*sQ.length)], sQ[sQ.length-1]);
+                for (double e : new double[]{1e-8,1e-6,1e-4,1e-2,1,10,100}) {
+                    double m = sQ[sQ.length/2];
+                    System.out.printf(Locale.US, "[DBG] eps=%g  ΔsqrtQ@median≈%.3g%n", e, Math.sqrt(m*m+e)-m);
+                }
+
             }
         }
         System.out.println("[CORA] Done. CSV written to: " + out.toAbsolutePath());
@@ -146,15 +222,22 @@ public class LRMCablations {
                 alpha = Math.max(1, diam); // guard
             } else if ("invsqrt_lambda2".equals(alphaName)) {
                 LocalSubgraph g = gCache.computeIfAbsent(idx, k -> buildLocal(cora.adj, s.nodes));
-                double lam2 = estimateLambda2(g, MAX_L2_ITERS);
-                if (lam2 <= 1e-12) continue; // ill-defined, skip
+                int iters = Math.max(MAX_L2_ITERS, Math.min(200, 20 + 2 * s.nC));
+                double lam2 = estimateLambda2(g, iters);
+                if (lam2 <= L2_FLOOR) lam2 = L2_FLOOR;  // keep the candidate
                 alpha = 1.0 / Math.sqrt(lam2);
+
             } else {
                 throw new IllegalArgumentException("Unknown alpha: " + alphaName);
             }
 
-            double dbar = s.sumDegIn / (double) s.nC;
-            double score = s.nC * (dbar - alpha * Math.sqrt(s.Q + eps));
+            double score;
+            if (USE_CALIBRATED) {
+                double dbar = s.sumDegIn / (double) s.nC;
+                score = s.nC * (dbar - alpha * Math.sqrt(s.Q + eps));
+            } else {
+                score = s.nC / (s.Q + eps);
+            }
             out.add(new RankedSeed(s.nodes, score));
         }
         out.sort((a, b) -> Double.compare(b.score, a.score));
@@ -172,11 +255,17 @@ public class LRMCablations {
         int globalMaj = 0;
         for (int c = 1; c < labelCounts.length; c++) if (labelCounts[c] > labelCounts[globalMaj]) globalMaj = c;
 
+        // union-of-seeds mask
+        boolean[] inSeedUnion = new boolean[n];
+
         // assign by descending seed score
         for (RankedSeed rs : seeds) {
             int[] nodes = rs.nodes;
             int maj = majorityLabel(nodes, cora.labels, cora.numClasses);
-            for (int v : nodes) if (pred[v] == -1) pred[v] = maj;
+            for (int v : nodes) {
+                inSeedUnion[v] = true;
+                if (pred[v] == -1) pred[v] = maj;
+            }
         }
         // fallback
         int assigned = 0;
@@ -184,13 +273,19 @@ public class LRMCablations {
             if (pred[i] == -1) pred[i] = globalMaj; else assigned++;
         }
 
+        // metrics
         double acc = 0;
         for (int i = 0; i < n; i++) if (pred[i] == cora.labels[i]) acc++;
         acc /= n;
 
+        int coveredCount = 0, coveredCorrect = 0;
+        for (int i = 0; i < n; i++) if (inSeedUnion[i]) { coveredCount++; if (pred[i] == cora.labels[i]) coveredCorrect++; }
+        double coveredAcc = coveredCount > 0 ? coveredCorrect / (double) coveredCount : 0.0;
+
         double macroF1 = macroF1(pred, cora.labels, cora.numClasses);
-        double coverage = assigned / (double) n;
-        return new EvalResult(acc, macroF1, coverage);
+        double coverage = coveredCount / (double) n;
+        double assignedPct = assigned / (double) n;
+        return new EvalResult(acc, macroF1, coverage, assignedPct, coveredAcc);
     }
 
     static int majorityLabel(int[] nodes, int[] labels, int numClasses) {
@@ -218,77 +313,101 @@ public class LRMCablations {
         return f1sum / C;
     }
 
-    // ---------------- Reconstruction snapshots via degeneracy-peeling order ----------------
-    static Reconstruction buildReconstructionSnapshots(int[][] adj) {
-        int n = adj.length;
-        int[] deg = new int[n];
-        for (int i = 0; i < n; i++) deg[i] = adj[i].length;
+    // ---------------- Nearest-seed evaluation and selection helpers ----------------
+    static EvalResult evaluateNearestSeed(Cora cora, List<RankedSeed> seeds, int maxHops) {
+        int n = cora.n;
+        int[] pred = new int[n];
+        Arrays.fill(pred, -1);
 
-        // priority-queue peeling to get a degeneracy-style order
-        boolean[] removed = new boolean[n];
-        PriorityQueue<int[]> pq = new PriorityQueue<>(Comparator.<int[]>comparingInt(a -> a[0]).thenComparingInt(a -> a[1]));
-        for (int i = 0; i < n; i++) pq.offer(new int[]{deg[i], i});
-        int[] order = new int[n];
-        int oi = 0;
-        while (!pq.isEmpty()) {
-            int[] top = pq.poll();
-            int d = top[0], u = top[1];
-            if (removed[u] || d != deg[u]) continue;
-            removed[u] = true;
-            order[oi++] = u;
-            for (int v : adj[u]) if (!removed[v]) { deg[v]--; pq.offer(new int[]{deg[v], v}); }
+        // global majority fallback
+        int[] labelCounts = new int[cora.numClasses];
+        for (int y : cora.labels) labelCounts[y]++;
+        int globalMaj = 0; for (int c = 1; c < labelCounts.length; c++) if (labelCounts[c] > labelCounts[globalMaj]) globalMaj = c;
+
+        // union mask and per-seed majority labels
+        boolean[] inSeedUnion = new boolean[n];
+        List<Integer> seedMaj = new ArrayList<>();
+        for (RankedSeed rs : seeds) {
+            int[] nodes = rs.nodes;
+            int maj = majorityLabel(nodes, cora.labels, cora.numClasses);
+            seedMaj.add(maj);
+            for (int v : nodes) { inSeedUnion[v] = true; if (pred[v] == -1) pred[v] = maj; }
         }
-        int[] addOrder = new int[n];
-        for (int i = 0; i < n; i++) addOrder[i] = order[n - 1 - i];
 
-        // reconstruct with DSU and track component at each activation
-        DSU dsu = new DSU(n);
-        boolean[] active = new boolean[n];
-        int[] degIn = new int[n];
-        @SuppressWarnings("unchecked")
-        HashSet<Integer>[] compNodes = new HashSet[n];
-        for (int i = 0; i < n; i++) compNodes[i] = new HashSet<>();
-
-        Reconstruction recon = new Reconstruction();
-
-        for (int u : addOrder) {
-            active[u] = true;
-            compNodes[u].add(u);
-            // connect to active neighbors
-            for (int v : adj[u]) if (active[v]) {
-                degIn[u]++; degIn[v]++;
-                int r1 = dsu.find(u), r2 = dsu.find(v);
-                if (r1 != r2) {
-                    int r = dsu.union(r1, r2);
-                    int o = (r == r1) ? r2 : r1;
-                    if (r != o) { compNodes[r].addAll(compNodes[o]); compNodes[o].clear(); }
+        // multi-source BFS up to maxHops, tie-broken by seed order
+        int[] owner = new int[n]; Arrays.fill(owner, -1);
+        int[] dist = new int[n]; Arrays.fill(dist, -1);
+        ArrayDeque<Integer> q = new ArrayDeque<>();
+        for (int s = 0; s < seeds.size(); s++) {
+            for (int v : seeds.get(s).nodes) {
+                if (dist[v] == -1) { dist[v] = 0; owner[v] = s; q.add(v); }
+            }
+        }
+        while (!q.isEmpty()) {
+            int u = q.poll();
+            if (dist[u] >= maxHops) continue;
+            for (int v : cora.adj[u]) {
+                if (dist[v] == -1) {
+                    dist[v] = dist[u] + 1;
+                    owner[v] = owner[u];
+                    if (pred[v] == -1) pred[v] = seedMaj.get(owner[v]);
+                    q.add(v);
                 }
             }
-            int r = dsu.find(u);
-            int[] nodes = compNodes[r].stream().mapToInt(x -> x).toArray();
-            Arrays.sort(nodes);
-            // compute Q and sumDegIn for this snapshot
-            double Q = 0;
-            long sumDeg = 0;
-            HashSet<Integer> set = new HashSet<>();
-            for (int x : nodes) set.add(x);
-            for (int x : nodes) {
-                int dx = degIn[x];
-                sumDeg += dx;
-                for (int y : adj[x]) if (y > x && set.contains(y)) {
-                    int dy = degIn[y];
-                    double d = dx - dy;
-                    Q += d * d;
-                }
-            }
-            Snapshot snap = new Snapshot(nodes, nodes.length, sumDeg, Q);
-            recon.snaps.add(snap);
         }
-        return recon;
+
+        int assigned = 0; for (int i = 0; i < n; i++) if (pred[i] != -1) assigned++;
+        for (int i = 0; i < n; i++) if (pred[i] == -1) pred[i] = globalMaj;
+
+        int correct = 0; for (int i = 0; i < n; i++) if (pred[i] == cora.labels[i]) correct++;
+        double acc = correct / (double) n;
+
+        int coveredCount = 0, coveredCorrect = 0;
+        for (int i = 0; i < n; i++) if (inSeedUnion[i]) { coveredCount++; if (pred[i] == cora.labels[i]) coveredCorrect++; }
+        double coveredAcc = coveredCount > 0 ? coveredCorrect / (double) coveredCount : 0.0;
+
+        double macro = macroF1(pred, cora.labels, cora.numClasses);
+        double seedCoverage = coveredCount / (double) n;
+        double assignedPct = assigned / (double) n;
+        return new EvalResult(acc, macro, seedCoverage, assignedPct, coveredAcc);
+    }
+
+    static List<RankedSeed> selectSeedsByCoverageNMS(List<RankedSeed> ranked, int n, double target, double nms) {
+        List<RankedSeed> chosen = new ArrayList<>();
+        boolean[] covered = new boolean[n];
+        int coveredCount = 0;
+        for (RankedSeed cand : ranked) {
+            boolean overlapTooHigh = false;
+            for (RankedSeed s : chosen) {
+                if (jaccardOverlap(cand.nodes, s.nodes) > nms) { overlapTooHigh = true; break; }
+            }
+            if (overlapTooHigh) continue;
+            chosen.add(cand);
+            for (int v : cand.nodes) if (!covered[v]) { covered[v] = true; coveredCount++; }
+            if (coveredCount / (double) n >= target) break;
+        }
+        return chosen;
+    }
+
+    static double jaccardOverlap(int[] a, int[] b) {
+        int i = 0, j = 0, inter = 0;
+        while (i < a.length && j < b.length) {
+            if (a[i] == b[j]) { inter++; i++; j++; }
+            else if (a[i] < b[j]) i++; else j++;
+        }
+        int union = a.length + b.length - inter;
+        return union == 0 ? 0.0 : inter / (double) union;
+    }
+
+    static double computeUnionCoverage(List<RankedSeed> seeds, int n) {
+        boolean[] covered = new boolean[n];
+        int cnt = 0;
+        for (RankedSeed rs : seeds) for (int v : rs.nodes) if (!covered[v]) { covered[v] = true; cnt++; }
+        return cnt / (double) n;
     }
 
     // ---------------- Local subgraph utilities ----------------
-    static LocalSubgraph buildLocal(int[][] globalAdj, int[] nodes) {
+    static LocalSubgraph buildLocal(List<Integer>[] globalAdj, int[] nodes) {
         int n = nodes.length;
         int[] map = new int[globalAdj.length];
         Arrays.fill(map, -1);
@@ -302,6 +421,9 @@ public class LRMCablations {
                 int li = map[nb];
                 if (li >= 0) { lst[gi].add(li); deg[gi]++; }
             }
+        }
+        for (int i = 0; i < n; i++) {
+            Collections.sort(lst[i]);
         }
         int[][] adj = new int[n][];
         for (int i = 0; i < n; i++) {
@@ -382,33 +504,111 @@ public class LRMCablations {
         for (int i = 0; i < v.length; i++) v[i] /= s2;
     }
 
+    static double[] sqrtQArray(Reconstruction recon) {
+        double[] a = new double[recon.snaps.size()];
+        for (int i = 0; i < a.length; i++) {
+            double Q = recon.snaps.get(i).Q;
+            a[i] = Math.sqrt(Math.max(0.0, Q));
+        }
+        return a;
+    }
+
+    static boolean[] lowQMask(Reconstruction recon) {
+        boolean[] allow = new boolean[recon.snaps.size()];
+        double[] sQ = sqrtQArray(recon);
+        double[] sorted = Arrays.copyOf(sQ, sQ.length);
+        Arrays.sort(sorted);
+
+        // find first strictly-positive sqrt(Q)
+        int i0 = 0;
+        while (i0 < sorted.length && sorted[i0] == 0.0) i0++;
+
+        // keep all zeros plus a small band of the next positives
+        // choose band = max(50, 5% of remaining) to avoid being too thin
+        int band = Math.max(50, (int) Math.floor(0.05 * Math.max(1, sorted.length - i0)));
+        int i1 = Math.min(sorted.length - 1, i0 + band);
+        double thr = (i0 == sorted.length ? 0.0 : sorted[i1]);
+
+        int kept = 0;
+        for (int i = 0; i < sQ.length; i++) {
+            if (sQ[i] <= thr) { allow[i] = true; kept++; }
+        }
+        System.out.printf(Locale.US, "[LOWQ] sqrt(Q) filter: thr=%.4g kept=%d/%d (%.1f%%)%n",
+                thr, kept, sQ.length, 100.0 * kept / Math.max(1, sQ.length));
+
+        double min = sorted[0], med = sorted[sorted.length/2],
+                p90 = sorted[(int)(0.9*sorted.length)], max = sorted[sorted.length-1];
+        System.out.printf(Locale.US, "[LOWQ] sqrt(Q) stats: min=%.3g med=%.3g p90=%.3g max=%.3g%n",
+                min, med, p90, max);
+        return allow;
+    }
+
+    static List<RankedSeed> rankSeedsFiltered(Cora cora, Reconstruction recon, double eps, String alphaName, boolean[] allow) {
+        List<RankedSeed> out = new ArrayList<>();
+        Map<Integer, LocalSubgraph> gCache = new HashMap<>();
+
+        for (int idx = 0; idx < recon.snaps.size(); idx++) {
+            if (allow != null && !allow[idx]) continue;
+            Snapshot s = recon.snaps.get(idx);
+            if (s.nC <= 1) continue;
+
+            double alpha;
+            if ("diam".equals(alphaName)) {
+                LocalSubgraph g = gCache.computeIfAbsent(idx, k -> buildLocal(cora.adj, s.nodes));
+                int diam = graphDiameter(g);
+                alpha = Math.max(1, diam);
+            } else if ("invsqrt_lambda2".equals(alphaName)) {
+                LocalSubgraph g = gCache.computeIfAbsent(idx, k -> buildLocal(cora.adj, s.nodes));
+                int iters = Math.max(MAX_L2_ITERS, Math.min(200, 20 + 2 * s.nC));
+                double lam2 = estimateLambda2(g, iters);
+                if (lam2 <= L2_FLOOR) lam2 = L2_FLOOR;  // keep the candidate
+                alpha = 1.0 / Math.sqrt(lam2);
+            } else {
+                throw new IllegalArgumentException("Unknown alpha: " + alphaName);
+            }
+
+            double score;
+            if (USE_CALIBRATED) {
+                double dbar = s.sumDegIn / (double) s.nC;
+                score = s.nC * (dbar - alpha * Math.sqrt(s.Q + eps));
+            } else {
+                score = s.nC / (s.Q + eps);
+            }
+            out.add(new RankedSeed(s.nodes, score));
+        }
+        out.sort((a, b) -> Double.compare(b.score, a.score));
+        return out;
+    }
+
+
     // ---------------- Data containers ----------------
-    static final class Reconstruction {
+    public static final class Reconstruction {
         final List<Snapshot> snaps = new ArrayList<>();
     }
-    static final class Snapshot {
+    public static final class Snapshot {
         final int[] nodes; // 0-based ids in the original graph
         final int nC;
         final long sumDegIn; // sum of internal degrees at this snapshot
         final double Q;      // d^T L_C d at this snapshot
         Snapshot(int[] nodes, int nC, long sumDegIn, double Q) { this.nodes = nodes; this.nC = nC; this.sumDegIn = sumDegIn; this.Q = Q; }
     }
-    static final class RankedSeed {
+    public static final class RankedSeed {
         final int[] nodes; final double score;
         RankedSeed(int[] nodes, double score) { this.nodes = nodes; this.score = score; }
     }
-    static final class LocalSubgraph {
+    public static final class LocalSubgraph {
         final int n; final int[][] adj; final int[] deg;
         LocalSubgraph(int n, int[][] adj, int[] deg) { this.n = n; this.adj = adj; this.deg = deg; }
     }
-    static final class EvalResult {
-        final double accuracy, macroF1, coverage;
-        EvalResult(double accuracy, double macroF1, double coverage) { this.accuracy = accuracy; this.macroF1 = macroF1; this.coverage = coverage; }
+    public static final class EvalResult {
+        final double accuracy, macroF1, coverage, assignedPct, coveredAcc;
+        EvalResult(double accuracy, double macroF1, double coverage, double assignedPct, double coveredAcc) {
+            this.accuracy = accuracy; this.macroF1 = macroF1; this.coverage = coverage; this.assignedPct = assignedPct; this.coveredAcc = coveredAcc;
+        }
     }
-
-    static final class Cora {
-        final int n; final int m; final int[][] adj; final int[] labels; final int numClasses;
-        Cora(int n, int m, int[][] adj, int[] labels, int numClasses) { this.n = n; this.m = m; this.adj = adj; this.labels = labels; this.numClasses = numClasses; }
+    public static final class Cora {
+        final int n; final int m; final List<Integer>[] adj; final int[] labels; final int numClasses;
+        Cora(int n, int m, List<Integer>[] adj, int[] labels, int numClasses) { this.n = n; this.m = m; this.adj = adj; this.labels = labels; this.numClasses = numClasses; }
     }
 
     // =====================================================
@@ -466,17 +666,18 @@ public class LRMCablations {
             lastU = u; lastV = v;
         }
         int m = und.size();
-        int[] deg = new int[n];
-        for (int[] e : und) { deg[e[0]]++; deg[e[1]]++; }
-        int[][] adj = new int[n][];
-        for (int i = 0; i < n; i++) adj[i] = new int[deg[i]];
-        int[] cur = new int[n];
+        @SuppressWarnings("unchecked")
+        List<Integer>[] adj = new ArrayList[n];
+        for (int i = 0; i < n; i++) adj[i] = new ArrayList<>();
         for (int[] e : und) {
             int u = e[0], v = e[1];
-            adj[u][cur[u]++] = v;
-            adj[v][cur[v]++] = u;
+            adj[u].add(v);
+            adj[v].add(u);
         }
-        System.out.printf(Locale.US, "[CORA] missing cite endpoints: %d\n", missing);
+        for (int i = 0; i < n; i++) {
+            Collections.sort(adj[i]);
+        }
+        System.out.printf(Locale.US, "[CORA] missing cite endpoints: %d", missing);
         return new Cora(n, m, adj, labels, label2id.size());
     }
 
@@ -669,14 +870,6 @@ public class LRMCablations {
     static void shuffle(int[] a, Random rng) { for (int i = a.length - 1; i > 0; i--) { int j = rng.nextInt(i + 1); int t = a[i]; a[i] = a[j]; a[j] = t; } }
     static double mean(double[] x) { double s = 0; for (double v : x) s += v; return s / x.length; }
     static double stddev(double[] x, double mean) { if (x.length <= 1) return 0; double s2 = 0; for (double v : x) { double d = v - mean; s2 += d * d; } return Math.sqrt(s2 / (x.length - 1)); }
-
-    // ---------------- tiny DSU ----------------
-    static final class DSU {
-        int[] p, sz;
-        DSU(int n) { p = new int[n]; sz = new int[n]; for (int i = 0; i < n; i++) { p[i] = i; sz[i] = 1; } }
-        int find(int x) { while (p[x] != x) { p[x] = p[p[x]]; x = p[x]; } return x; }
-        int union(int a, int b) { int ra = find(a), rb = find(b); if (ra == rb) return ra; if (sz[ra] < sz[rb]) { int t = ra; ra = rb; rb = t; } p[rb] = ra; sz[ra] += sz[rb]; return ra; }
-    }
 
     static final class Row {
         final String series; final int n; final long m; final int trial; final double ms; final double theoX; final double pIntra; final double pInter;
