@@ -123,7 +123,16 @@ public class Table1Synthetic {
         }
     }
 
-    // Simple single-cluster graph for testing
+    /**
+     * Generates a simple synthetic graph with a single cluster for testing purposes.
+     *
+     * @param nTotal The total number of nodes in the graph.
+     * @param clusterSize The size of the single cluster.
+     * @param pIn The probability of edges within the cluster.
+     * @param pOut The probability of edges from the cluster to the rest of the graph.
+     * @param rand The random number generator used for probabilistic edge creation.
+     * @return A synthetic graph with a single cluster.
+     */
     static SyntheticGraph generateSimpleGraph(int nTotal, int clusterSize, double pIn, double pOut, Random rand) {
         SyntheticGraph g = new SyntheticGraph(nTotal);
 
@@ -294,292 +303,11 @@ public class Table1Synthetic {
         return evalResult;
     }
 
-    // Scenario 1: Hub-dominated graph
-    static SyntheticGraph generateHubGraph(int nTotal, int clusterSize, double pIn, Random rand) {
-        SyntheticGraph g = new SyntheticGraph(nTotal);
-
-        // Plant target cluster (nodes 1..clusterSize)
-        for (int i = 1; i <= clusterSize; i++) {
-            g.plantedCluster.add(i);
-        }
-
-        // Make cluster internally connected but with uneven degrees
-        // Core nodes (first half) are very well connected
-        int coreSize = clusterSize / 2;
-        for (int i = 1; i <= coreSize; i++) {
-            for (int j = i + 1; j <= coreSize; j++) {
-                if (rand.nextDouble() < pIn) {
-                    g.addEdge(i, j);
-                }
-            }
-        }
-
-        // Peripheral nodes connect to core but not each other much
-        for (int i = coreSize + 1; i <= clusterSize; i++) {
-            // Each peripheral node connects to 4-6 core nodes
-            int connections = 4 + rand.nextInt(3);
-            Set<Integer> connected = new HashSet<>();
-            while (connected.size() < connections && connected.size() < coreSize) {
-                int target = 1 + rand.nextInt(coreSize);
-                if (!connected.contains(target)) {
-                    g.addEdge(i, target);
-                    connected.add(target);
-                }
-            }
-
-            // Very few connections to other peripheral nodes
-            for (int j = i + 1; j <= clusterSize; j++) {
-                if (rand.nextDouble() < 0.1) {
-                    g.addEdge(i, j);
-                }
-            }
-        }
-
-        // Add hub nodes that connect to MANY nodes (this confuses density-based methods)
-        for (int h = 0; h < 3; h++) {
-            int hub = nTotal - h;
-
-            // Hub connects to 60% of target cluster
-            for (int i = 1; i <= clusterSize; i++) {
-                if (rand.nextDouble() < 0.6) {
-                    g.addEdge(hub, i);
-                }
-            }
-
-            // Hub also connects to many random nodes
-            for (int i = clusterSize + 1; i < nTotal - 3; i++) {
-                if (rand.nextDouble() < 0.3) {
-                    g.addEdge(hub, i);
-                }
-            }
-        }
-
-        // Add background noise
-        for (int i = clusterSize + 1; i < nTotal - 3; i++) {
-            for (int j = i + 1; j < nTotal - 3; j++) {
-                if (rand.nextDouble() < 0.02) {
-                    g.addEdge(i, j);
-                }
-            }
-        }
-
-        return g;
-    }
-
-    // Scenario 2: Competing clusters of different types
-    static SyntheticGraph generateCompetingClusters(int nTotal, int targetSize, Random rand) {
-        SyntheticGraph g = new SyntheticGraph(nTotal);
-
-        // Target cluster: high minimum degree but moderate average degree
-        for (int i = 1; i <= targetSize; i++) {
-            g.plantedCluster.add(i);
-        }
-
-        // Make target cluster with good minimum degree
-        for (int i = 1; i <= targetSize; i++) {
-            // Each node connects to exactly 8-12 others (good min degree)
-            Set<Integer> neighbors = new HashSet<>();
-            while (neighbors.size() < 8 + rand.nextInt(5)) {
-                int j = 1 + rand.nextInt(targetSize);
-                if (j != i && !neighbors.contains(j)) {
-                    neighbors.add(j);
-                    g.addEdge(i, j);
-                }
-            }
-        }
-
-        // Competing cluster: high average degree but poor minimum degree (has weak nodes)
-        int compStart = targetSize + 10;
-        int compSize = targetSize + 5; // Slightly larger
-
-        // Most nodes in competing cluster are very well connected
-        for (int i = compStart; i < compStart + compSize - 5; i++) {
-            for (int j = i + 1; j < compStart + compSize - 5; j++) {
-                if (rand.nextDouble() < 0.8) { // Very dense core
-                    g.addEdge(i, j);
-                }
-            }
-        }
-
-        // But a few nodes have very low degree (this hurts RMC score but not density)
-        for (int i = compStart + compSize - 5; i < compStart + compSize; i++) {
-            // These nodes connect to only 2-3 others
-            int connections = 2 + rand.nextInt(2);
-            for (int c = 0; c < connections; c++) {
-                int target = compStart + rand.nextInt(compSize - 5);
-                g.addEdge(i, target);
-            }
-        }
-
-        // Add inter-cluster noise
-        for (int i = 1; i <= targetSize; i++) {
-            if (rand.nextDouble() < 0.05) {
-                int target = compStart + rand.nextInt(compSize);
-                g.addEdge(i, target);
-            }
-        }
-
-        return g;
-    }
-
-    // Add this debugging method
-    static void debugClusters(SyntheticGraph g, String scenario) {
-        System.err.printf("\n=== DEBUG %s ===\n", scenario);
-
-        // Find all connected components of reasonable size
-        boolean[] visited = new boolean[g.n + 1];
-        List<Set<Integer>> components = new ArrayList<>();
-
-        for (int i = 1; i <= g.n; i++) {
-            if (!visited[i]) {
-                Set<Integer> component = new HashSet<>();
-                Queue<Integer> queue = new LinkedList<>();
-                queue.offer(i);
-                visited[i] = true;
-
-                while (!queue.isEmpty()) {
-                    int u = queue.poll();
-                    component.add(u);
-
-                    for (int v : g.adj[u]) {
-                        if (!visited[v]) {
-                            visited[v] = true;
-                            queue.offer(v);
-                        }
-                    }
-                }
-
-                if (component.size() >= 10) { // Only consider large components
-                    components.add(component);
-                }
-            }
-        }
-
-        System.err.printf("Found %d large components\n", components.size());
-
-        // Analyze each component
-        for (int i = 0; i < components.size(); i++) {
-            Set<Integer> comp = components.get(i);
-
-            // Compute statistics
-            int edges = 0;
-            int minDeg = Integer.MAX_VALUE;
-            int totalDeg = 0;
-
-            for (int u : comp) {
-                int deg = 0;
-                for (int v : g.adj[u]) {
-                    if (comp.contains(v)) {
-                        deg++;
-                        if (u < v) edges++;
-                    }
-                }
-                totalDeg += deg;
-                minDeg = Math.min(minDeg, deg);
-            }
-
-            double avgDeg = (double) totalDeg / comp.size();
-            double density = comp.size() <= 1 ? 0 : (double) edges / (comp.size() * (comp.size() - 1) / 2);
-            int rmcScore = comp.size() * minDeg;
-
-            // Check overlap with planted cluster
-            Set<Integer> intersection = new HashSet<>(comp);
-            intersection.retainAll(g.plantedCluster);
-            double precision = intersection.size() / (double) comp.size();
-            double recall = intersection.size() / (double) g.plantedCluster.size();
-
-            System.err.printf("Component %d: size=%d, minDeg=%d, avgDeg=%.1f, density=%.3f, RMC=%d, precision=%.3f, recall=%.3f\n",
-                i, comp.size(), minDeg, avgDeg, density, rmcScore, precision, recall);
-
-            // Show some node IDs to see which component is which
-            List<Integer> nodeList = new ArrayList<>(comp);
-            nodeList.sort(Integer::compareTo);
-            System.err.printf("  First 10 nodes: %s\n", nodeList.subList(0, Math.min(10, nodeList.size())));
-        }
-
-        // Planted cluster stats
-        System.err.printf("PLANTED cluster: size=%d, first 10 nodes: %s\n",
-            g.plantedCluster.size(),
-            g.plantedCluster.stream().sorted().limit(10).collect(java.util.stream.Collectors.toList()));
-    }
-
-    // Also test epsilon values systematically
-    static void testEpsilonValues(SyntheticGraph g, String scenario) {
-        System.err.printf("\n=== EPSILON TEST %s ===\n", scenario);
-
-        double[] epsilons = {10, 50, 100, 500, 1000, 2000, 5000};
-
-        for (double eps : epsilons) {
-            clique2_mk_benchmark_accuracy.Result result =
-                clique2_mk_benchmark_accuracy.runLaplacianRMC(g.adj, eps);
-
-            if (result.bestComponent != null && !result.bestComponent.isEmpty()) {
-                Set<Integer> found = result.bestComponent;
-                Set<Integer> intersection = new HashSet<>(found);
-                intersection.retainAll(g.plantedCluster);
-
-                double precision = intersection.size() / (double) found.size();
-                double recall = intersection.size() / (double) g.plantedCluster.size();
-
-                // Show first few nodes to see which cluster was found
-                List<Integer> nodeList = new ArrayList<>(found);
-                nodeList.sort(Integer::compareTo);
-
-                System.err.printf("eps=%.0f: size=%d, precision=%.3f, recall=%.3f, score=%.3f, first5=%s\n",
-                    eps, found.size(), precision, recall, result.bestScore,
-                    nodeList.subList(0, Math.min(5, nodeList.size())));
-            } else {
-                System.err.printf("eps=%.0f: NOTHING FOUND\n", eps);
-            }
-        }
-    }
-
-    // Add this method to debug L-RMC specifically
-    static void debugLRMCSteps(SyntheticGraph g, String scenario) {
-        System.err.printf("\n=== L-RMC STEP DEBUG %s ===\n", scenario);
-
-        // Test different epsilon values specifically for this graph
-        double[] epsilons = {50, 100, 200, 500, 1000, 2000, 5000, 10000};
-
-        for (double eps : epsilons) {
-            clique2_mk_benchmark_accuracy.Result result =
-                clique2_mk_benchmark_accuracy.runLaplacianRMC(g.adj, eps);
-
-            if (result.bestComponent != null && !result.bestComponent.isEmpty()) {
-                Set<Integer> found = result.bestComponent;
-
-                // Compute RMC score manually
-                int minDeg = Integer.MAX_VALUE;
-                for (int u : found) {
-                    int deg = 0;
-                    for (int v : g.adj[u]) {
-                        if (found.contains(v)) deg++;
-                    }
-                    minDeg = Math.min(minDeg, deg);
-                }
-                int rmcScore = found.size() * minDeg;
-
-                // Check which component this overlaps with most
-                String whichComponent = "Unknown";
-                if (found.stream().anyMatch(x -> x <= 30)) {
-                    whichComponent = "Target";
-                } else if (found.stream().anyMatch(x -> x >= 100)) {
-                    whichComponent = "Competing";
-                }
-
-                System.err.printf("eps=%.0f: size=%d, minDeg=%d, RMC=%d, score=%.6f, type=%s\n",
-                    eps, found.size(), minDeg, rmcScore, result.bestScore, whichComponent);
-            } else {
-                System.err.printf("eps=%.0f: NOTHING FOUND\n", eps);
-            }
-        }
-    }
-
-    // Modified main: sweep parameters and write CSV like the reference file
+    // Sweep parameters and write CSV like the reference file
     public static void main(String[] args) {
         double eps = 10; // Default epsilon value
         int numRuns = 10; // Default number of runs
-        
+
         if (args.length > 0) {
             try {
                 eps = Double.parseDouble(args[0]);
@@ -587,7 +315,7 @@ public class Table1Synthetic {
                 System.err.println("Invalid epsilon value. Using default value of 10.");
             }
         }
-        
+
         try {
             runAndWriteCsv(eps, numRuns);
         } catch (IOException e) {
@@ -774,19 +502,6 @@ public class Table1Synthetic {
             }
         }
         return g;
-    }
-
-    static void testAllMethods(String scenario, SyntheticGraph g, double eps) {
-        // Debug what we created
-        debugClusters(g, scenario);
-
-        EvaluationResult lrmcResult = runSingleLRMC(g, eps);
-        EvaluationResult kcoreResult = runBestKCore(g);
-        EvaluationResult densestResult = runDensestSingle(g);
-
-        printResult(scenario, "L-RMC", lrmcResult);
-        printResult(scenario, "k-core", kcoreResult);
-        printResult(scenario, "Densest", densestResult);
     }
 
     static void printResult(String scenario, String method, EvaluationResult result) {
