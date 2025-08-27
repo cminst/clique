@@ -197,7 +197,7 @@ def display_method_analysis(console, analysis_result):
             if values:
                 stats = calculate_numeric_stats(values)
                 column_means.append(float(stats['mean']))
-        
+
         # Skip if all means are identical (within floating point precision)
         if len(set(round(mean, 10) for mean in column_means)) <= 1:
             excluded_columns.append(column)
@@ -226,10 +226,10 @@ def display_method_analysis(console, analysis_result):
                 )
 
         console.print(table)
-    
+
     # Show excluded columns note
     if excluded_columns:
-        console.print(f"\n[dim]Excluded columns (identical averages across all methods): {', '.join(excluded_columns)}[/dim]")
+        console.print(f"\n[dim]Excluded columns (identical averages across all methods): {', '.join(excluded_columns)}[/dim]\n")
 
 def display_categorical_analysis(console, analysis_result):
     """Display analysis for categorical columns."""
