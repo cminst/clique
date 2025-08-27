@@ -28,6 +28,25 @@ def calculate_average_f1(csv_file, method_name):
 
     return sum(f1_scores) / len(f1_scores)
 
+def calculate_average_density(csv_file, method_name):
+    """Calculate average density for a given method in a CSV file."""
+    densities = []
+
+    try:
+        with open(csv_file, 'r') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                if row['Method'] == method_name:
+                    densities.append(float(row['Density']))
+    except Exception as e:
+        print(f"Error reading {csv_file}: {e}")
+        return None
+
+    if not densities:
+        return None
+
+    return sum(densities) / len(densities)
+
 def analyze_csv_files():
     """Analyze all CSV files and find optimal eps value for L-RMC, then compare other methods at that eps."""
     csv_files = []
@@ -84,14 +103,21 @@ def analyze_csv_files():
         print(f"Error reading {optimal_file} to detect methods: {e}")
         return
 
-    # Calculate average F1 for all methods in the optimal file
-    print(f"(eps={optimal_eps}) F1 scores for all methods:")
+    # Calculate average F1 and Density for all methods in the optimal file
+    print(f"(eps={optimal_eps:.1e}) Performance metrics for all methods:")
     all_method_results = []
     for method in sorted(methods):
         avg_f1 = calculate_average_f1(optimal_file, method)
-        if avg_f1 is not None:
-            all_method_results.append((method, avg_f1))
-            print(f"  {method}: Average F1 = {avg_f1:.3f}")
+        avg_density = calculate_average_density(optimal_file, method)
+        if avg_f1 is not None and avg_density is not None:
+            all_method_results.append((method, avg_f1, avg_density))
+            print(f"  {method:<12}: Average F1 = {avg_f1:.3f}, Average Density = {avg_density:.3f}")
+        elif avg_f1 is not None:
+            print(f"  {method:<12}: Average F1 = {avg_f1:.3f}, Average Density = N/A")
+        elif avg_density is not None:
+            print(f"  {method:<12}: Average F1 = N/A,        Average Density = {avg_density:.3f}")
+        else:
+            print(f"  {method:<12}: Average F1 = N/A,        Average Density = N/A")
 
 if __name__ == "__main__":
     analyze_csv_files()
