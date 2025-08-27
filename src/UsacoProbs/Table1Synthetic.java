@@ -123,54 +123,6 @@ public class Table1Synthetic {
         }
     }
 
-    /**
-     * Generates a simple synthetic graph with a single cluster for testing purposes.
-     *
-     * @param nTotal The total number of nodes in the graph.
-     * @param clusterSize The size of the single cluster.
-     * @param pIn The probability of edges within the cluster.
-     * @param pOut The probability of edges from the cluster to the rest of the graph.
-     * @param rand The random number generator used for probabilistic edge creation.
-     * @return A synthetic graph with a single cluster.
-     */
-    static SyntheticGraph generateSimpleGraph(int nTotal, int clusterSize, double pIn, double pOut, Random rand) {
-        SyntheticGraph g = new SyntheticGraph(nTotal);
-
-        // Plant one cluster in nodes 1..clusterSize
-        for (int i = 1; i <= clusterSize; i++) {
-            g.plantedCluster.add(i);
-        }
-
-        // Add intra-cluster edges
-        for (int i = 1; i <= clusterSize; i++) {
-            for (int j = i + 1; j <= clusterSize; j++) {
-                if (rand.nextDouble() < pIn) {
-                    g.addEdge(i, j);
-                }
-            }
-        }
-
-        // Add noise edges from cluster to outside
-        for (int i = 1; i <= clusterSize; i++) {
-            for (int j = clusterSize + 1; j <= nTotal; j++) {
-                if (rand.nextDouble() < pOut) {
-                    g.addEdge(i, j);
-                }
-            }
-        }
-
-        // Add background noise
-        for (int i = clusterSize + 1; i <= nTotal; i++) {
-            for (int j = i + 1; j <= nTotal; j++) {
-                if (rand.nextDouble() < 0.01) {
-                    g.addEdge(i, j);
-                }
-            }
-        }
-
-        return g;
-    }
-
     static EvaluationResult runSingleLRMC(SyntheticGraph g, double eps) {
         long start = System.nanoTime();
 
@@ -391,92 +343,7 @@ public class Table1Synthetic {
                 method, k, pIn, pOut, r.precision, r.recall, r.f1, r.density, rmcScore, r.runtimeMs);
     }
 
-    // Scenario 1: Star graph vs clique - L-RMC should prefer the clique
-    static SyntheticGraph generateStarVsClique(Random rand) {
-        SyntheticGraph g = new SyntheticGraph(100);
-
-        // Target: A 20-clique (nodes 1-20)
-        for (int i = 1; i <= 20; i++) {
-            g.plantedCluster.add(i);
-            for (int j = i + 1; j <= 20; j++) {
-                g.addEdge(i, j);
-            }
-        }
-
-        // Distractor: A big star (node 50 connected to nodes 51-80)
-        for (int i = 51; i <= 80; i++) {
-            g.addEdge(50, i);
-        }
-
-        // Note: These are SEPARATE - no edges between them
-        return g;
-    }
-
-    // Scenario 2: Hub connected to clique
-    static SyntheticGraph generateHubClique(Random rand) {
-        SyntheticGraph g = new SyntheticGraph(100);
-
-        // Target: Dense cluster (nodes 1-25)
-        for (int i = 1; i <= 25; i++) {
-            g.plantedCluster.add(i);
-            for (int j = i + 1; j <= 25; j++) {
-                if (rand.nextDouble() < 0.7) { // 70% density
-                    g.addEdge(i, j);
-                }
-            }
-        }
-
-        // Hub that connects to the cluster (this inflates average degree)
-        for (int i = 1; i <= 25; i++) {
-            if (rand.nextDouble() < 0.8) { // Hub connects to 80% of cluster
-                g.addEdge(99, i);
-            }
-        }
-
-        return g;
-    }
-
-    // Scenario 3: Two completely separate clusters
-    static SyntheticGraph generateTwoSeparateClusters(Random rand) {
-        SyntheticGraph g = new SyntheticGraph(200);
-
-        // Target cluster: Good minimum degree (nodes 1-30)
-        for (int i = 1; i <= 30; i++) {
-            g.plantedCluster.add(i);
-        }
-
-        // Each node connects to exactly 12 others (good minimum degree)
-        for (int i = 1; i <= 30; i++) {
-            Set<Integer> neighbors = new HashSet<>();
-            while (neighbors.size() < 12) {
-                int j = 1 + rand.nextInt(30);
-                if (j != i) neighbors.add(j);
-            }
-            for (int j : neighbors) {
-                g.addEdge(i, j);
-            }
-        }
-
-        // Competing cluster: High average degree but poor minimum degree (nodes 100-140)
-        // Core is very dense
-        for (int i = 100; i <= 130; i++) {
-            for (int j = i + 1; j <= 130; j++) {
-                if (rand.nextDouble() < 0.8) {
-                    g.addEdge(i, j);
-                }
-            }
-        }
-        // But a few nodes have very low degree
-        for (int i = 131; i <= 140; i++) {
-            // These connect to only 2 nodes
-            g.addEdge(i, 100 + rand.nextInt(5));
-            g.addEdge(i, 100 + rand.nextInt(5));
-        }
-
-        return g;
-    }
-
-    // New: planted single cluster with background noise, parameterized by pIn and pBackground
+    // Planted single cluster with background noise, parameterized by pIn and pBackground
     static SyntheticGraph generatePlantedClusterGraph(int nTotal, int clusterSize, double pIn, double pBackground, Random rand) {
         SyntheticGraph g = new SyntheticGraph(nTotal);
         for (int i = 1; i <= clusterSize; i++) g.plantedCluster.add(i);
