@@ -330,12 +330,32 @@ public class Table1Synthetic {
         }
     }
 
+    /**
+    * Writes a row to the CSV file with aggregated results.
+    *
+    * @param w      PrintWriter for writing to the CSV file.
+    * @param method The name of the method used (e.g., "L-RMC", "k-core").
+    * @param k      The cluster size.
+    * @param pIn    The internal density (probability of edges within the cluster).
+    * @param pOut   The external density (probability of edges outside the cluster).
+    * @param r      The aggregated result to write.
+    */
     private static void writeAggregatedRow(java.io.PrintWriter w, String method, int k, double pIn, double pOut, AggregatedResult r) {
         w.printf(java.util.Locale.US,
                 "%s,%d,%.1f,%.2f,%.3f,%.3f,%.3f,%.3f,%d,%d%n",
                 method, k, pIn, pOut, r.precision, r.recall, r.f1, r.density, r.rmcScore, r.runtimeMs);
     }
 
+    /**
+    * Writes a row to the CSV file with single evaluation results.
+    *
+    * @param w      PrintWriter for writing to the CSV file.
+    * @param method The name of the method used (e.g., "L-RMC", "k-core").
+    * @param k      The cluster size.
+    * @param pIn    The internal density (probability of edges within the cluster).
+    * @param pOut   The external density (probability of edges outside the cluster).
+    * @param r      The evaluation result to write.
+    */
     private static void writeRow(java.io.PrintWriter w, String method, int k, double pIn, double pOut, EvaluationResult r) {
         long rmcScore = (long) (r.found.size() * r.minDeg);
         w.printf(java.util.Locale.US,
