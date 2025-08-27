@@ -14,7 +14,7 @@ def statistical_analysis():
 
     # Paired t-test (since we used same seeds)
     t_stat, p_value = stats.ttest_rel(binary_feature_results, baseline_results)
-    print(f"\nPaired t-test:")
+    print("\nPaired t-test:")
     print(f"t-statistic: {t_stat:.3f}")
     print(f"p-value: {p_value:.3f}")
     print(f"Significant at p<0.05: {'Yes' if p_value < 0.05 else 'No'}")

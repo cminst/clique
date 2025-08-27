@@ -142,10 +142,10 @@ public class clique2_mk_benchmark_accuracy {
             {
                 int ru = dsu.find(u);
                 double sL = dsu.size[ru] / (dsu.Q[ru] + EPS);
-                double currentScore = calculateRMCScore.apply(ru);
                 if (sL > bestSL) {
                     bestSL = sL;
                     bestRoot = ru;
+                    double currentScore = calculateRMCScore.apply(ru);
                     bestScore = currentScore;
 
                     // Snapshot current component
@@ -190,10 +190,10 @@ public class clique2_mk_benchmark_accuracy {
 
                 // score after this edge activation
                 double sL = dsu.size[r] / (dsu.Q[r] + EPS);
-                double currentScore = calculateRMCScore.apply(r);
                 if (sL > bestSL) {
                     bestSL = sL;
                     bestRoot = r;
+                    double currentScore = calculateRMCScore.apply(r);
                     bestScore = currentScore;
 
                     // Snapshot current component
