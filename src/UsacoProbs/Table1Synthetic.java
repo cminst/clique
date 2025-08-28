@@ -32,14 +32,14 @@ public class Table1Synthetic {
 
     static class AggregatedResult {
         double precision, recall, f1;
-        double minDeg, avgDeg, density;
+        double minDeg, avgDeg, maxDeg, density;
         long rmcScore;
         long runtimeMs;
         int count;
 
         AggregatedResult() {
             precision = recall = f1 = 0;
-            minDeg = avgDeg = density = 0;
+            minDeg = avgDeg = maxDeg = density = 0;
             rmcScore = 0;
             runtimeMs = 0;
             count = 0;
@@ -51,6 +51,7 @@ public class Table1Synthetic {
             f1 += r.f1;
             minDeg += r.minDeg;
             avgDeg += r.avgDeg;
+            maxDeg += r.maxDeg;
             density += r.density;
             rmcScore += r.found.size() * r.minDeg;
             runtimeMs += r.runtimeMs;
@@ -64,6 +65,7 @@ public class Table1Synthetic {
                 f1 /= count;
                 minDeg /= count;
                 avgDeg /= count;
+                maxDeg /= count;
                 density /= count;
                 rmcScore /= count;
                 runtimeMs /= count;
@@ -74,7 +76,7 @@ public class Table1Synthetic {
     static class EvaluationResult {
         Set<Integer> found;
         double precision, recall, f1;
-        double minDeg, avgDeg, density;
+        double minDeg, avgDeg, maxDeg, density;
         long runtimeMs;
 
         EvaluationResult(Set<Integer> found, Set<Integer> planted, long runtime) {
@@ -83,7 +85,7 @@ public class Table1Synthetic {
 
             if (found.isEmpty()) {
                 precision = recall = f1 = 0.0;
-                minDeg = avgDeg = density = 0.0;
+                minDeg = avgDeg = maxDeg = density = 0.0;
             } else {
                 Set<Integer> intersection = new HashSet<>(found);
                 intersection.retainAll(planted);
@@ -96,12 +98,13 @@ public class Table1Synthetic {
 
         void computeStats(List<Integer>[] adj) {
             if (found.isEmpty()) {
-                minDeg = avgDeg = density = 0.0;
+                minDeg = avgDeg = maxDeg = density = 0.0;
                 return;
             }
 
             int totalDeg = 0;
             int minD = Integer.MAX_VALUE;
+            int maxD = Integer.MIN_VALUE;
             int edges = 0;
 
             for (int u : found) {
@@ -114,9 +117,11 @@ public class Table1Synthetic {
                 }
                 totalDeg += deg;
                 minD = Math.min(minD, deg);
+                maxD = Math.max(maxD, deg);
             }
 
             minDeg = minD;
+            maxDeg = maxD;
             avgDeg = (double) totalDeg / found.size();
             int maxEdges = found.size() * (found.size() - 1) / 2;
             density = maxEdges == 0 ? 0.0 : (double) edges / maxEdges;
@@ -141,23 +146,22 @@ public class Table1Synthetic {
         long start = System.nanoTime();
 
         Set<Integer> bestCore = new HashSet<>();
-        double bestF1 = 0.0;
+        double bestAvgDeg = -1.0; // unsupervised selection by avg internal degree
 
         // Try different k values
         for (int k = 30; k >= 3; k--) {
             Set<Integer> core = computeKCore(g, k);
             if (core.isEmpty()) continue;
-
-            // Evaluate this core
-            Set<Integer> intersection = new HashSet<>(core);
-            intersection.retainAll(g.plantedCluster);
-
-            double precision = core.isEmpty() ? 0 : (double) intersection.size() / core.size();
-            double recall = g.plantedCluster.isEmpty() ? 0 : (double) intersection.size() / g.plantedCluster.size();
-            double f1 = (precision + recall == 0) ? 0 : 2 * precision * recall / (precision + recall);
-
-            if (f1 > bestF1) {
-                bestF1 = f1;
+            // Unsupervised: compute average internal degree of this core and keep the best
+            int totalDeg = 0;
+            for (int u : core) {
+                int deg = 0;
+                for (int v : g.adj[u]) if (core.contains(v)) deg++;
+                totalDeg += deg;
+            }
+            double avgDeg = core.isEmpty() ? 0.0 : (double) totalDeg / core.size();
+            if (avgDeg > bestAvgDeg || (avgDeg == bestAvgDeg && core.size() > bestCore.size())) {
+                bestAvgDeg = avgDeg;
                 bestCore = new HashSet<>(core);
             }
         }
@@ -212,41 +216,27 @@ public class Table1Synthetic {
         }
 
         Set<Integer> bestSubgraph = new HashSet<>();
-        double bestF1 = 0.0;
+        double bestAvgDeg = -1.0; // Charikar baseline: pick max average degree along peel
 
         while (remaining.size() > 10) {
-            // Evaluate current subgraph
-            Set<Integer> intersection = new HashSet<>(remaining);
-            intersection.retainAll(g.plantedCluster);
-
-            double precision = remaining.isEmpty() ? 0 : (double) intersection.size() / remaining.size();
-            double recall = g.plantedCluster.isEmpty() ? 0 : (double) intersection.size() / g.plantedCluster.size();
-            double f1 = (precision + recall == 0) ? 0 : 2 * precision * recall / (precision + recall);
-
-            if (f1 > bestF1) {
-                bestF1 = f1;
-                bestSubgraph = new HashSet<>(remaining);
-            }
-
-            // Remove min degree node
+            // Unsupervised: compute average internal degree of current subgraph
+            int totalDeg = 0;
             int minDegNode = -1;
             int minDeg = Integer.MAX_VALUE;
             for (int u : remaining) {
                 int deg = 0;
-                for (int v : g.adj[u]) {
-                    if (remaining.contains(v)) deg++;
-                }
-                if (deg < minDeg) {
-                    minDeg = deg;
-                    minDegNode = u;
-                }
+                for (int v : g.adj[u]) if (remaining.contains(v)) deg++;
+                totalDeg += deg;
+                if (deg < minDeg) { minDeg = deg; minDegNode = u; }
+            }
+            double avgDeg = remaining.isEmpty() ? 0.0 : (double) totalDeg / remaining.size();
+            if (avgDeg > bestAvgDeg || (avgDeg == bestAvgDeg && remaining.size() > bestSubgraph.size())) {
+                bestAvgDeg = avgDeg;
+                bestSubgraph = new HashSet<>(remaining);
             }
 
-            if (minDegNode != -1) {
-                remaining.remove(minDegNode);
-            } else {
-                break;
-            }
+            // Remove min degree node (Charikar peeling)
+            if (minDegNode != -1) remaining.remove(minDegNode); else break;
         }
 
         long end = System.nanoTime();
@@ -285,11 +275,11 @@ public class Table1Synthetic {
 
         String outPath = String.format(
                 java.util.Locale.US,
-                "UsacoProbs/Hard-nTotal=%d,eps=%.1e.csv",
+                "UsacoProbs/Table1-nTotal=%d,eps=%.1e.csv",
                 nTotal, eps);
 
         try (java.io.PrintWriter w = new java.io.PrintWriter(new java.io.BufferedWriter(new java.io.FileWriter(outPath)))) {
-            w.println("Method,ClusterSize,InternalDensity,ExternalDensity,Precision,Recall,F1,Density,RMCScore,Runtime");
+            w.println("Method,ClusterSize,InternalDensity,ExternalDensity,Precision,Recall,F1,Density,MinDeg,AvgDeg,MaxDeg,RMCScore,Runtime");
 
             for (int k : clusterSizes) {
                 for (double pIn : pIns) {
@@ -342,8 +332,8 @@ public class Table1Synthetic {
     */
     private static void writeAggregatedRow(java.io.PrintWriter w, String method, int k, double pIn, double pOut, AggregatedResult r) {
         w.printf(java.util.Locale.US,
-                "%s,%d,%.1f,%.2f,%.3f,%.3f,%.3f,%.3f,%d,%d%n",
-                method, k, pIn, pOut, r.precision, r.recall, r.f1, r.density, r.rmcScore, r.runtimeMs);
+                "%s,%d,%.1f,%.2f,%.3f,%.3f,%.3f,%.3f,%.1f,%.1f,%.1f,%d,%d%n",
+                method, k, pIn, pOut, r.precision, r.recall, r.f1, r.density, r.minDeg, r.avgDeg, r.maxDeg, r.rmcScore, r.runtimeMs);
     }
 
     /**
