@@ -114,15 +114,18 @@ def pool_by_partition(x: Tensor, edge_index: Tensor, cluster_id: Tensor, K: int)
     cu = cluster_id[edge_index[0]]
     cv = cluster_id[edge_index[1]]
     pairs = torch.stack([cu, cv], dim=1).tolist()
+    # ...
     uniq = set()
     pooled_edges = []
     for a, b in pairs:
         if a == b:
             continue
-        key = (int(a), int(b))
-        if key not in uniq:
-            uniq.add(key)
-            pooled_edges.append([key[0], key[1]])
+        key1 = (int(a), int(b))
+        key2 = (int(b), int(a))
+        if key1 not in uniq:
+            uniq.add(key1); pooled_edges.append([key1[0], key1[1]])
+        if key2 not in uniq:
+            uniq.add(key2); pooled_edges.append([key2[0], key2[1]])
     if pooled_edges:
         ei_pooled = torch.tensor(pooled_edges, dtype=torch.long, device=device).t().contiguous()
     else:
@@ -230,32 +233,55 @@ class PlainGCN(nn.Module):
 
 class LrmcSeededPoolGCN(nn.Module):
     """
-    Single-shot seeded pooling by an L-RMC partition.
-    Pooled logits are broadcast back and combined with a strengthened skip head.
-    We add a LEARNABLE scalar alpha >= 0 for the skip head to allow the model
-    to override bad cluster majorities during training.
+    Dual-branch GCN:
+      - node branch: conv2 on the ORIGINAL node graph (baseline)
+      - pooled branch: conv2 on the CLUSTER graph, broadcast to nodes
+    The pooled branch is (a) MASKED on small clusters and (b) softly gated.
     """
-    def __init__(self, in_dim, hidden_dim, out_dim, cluster_id: Tensor, K: int, dropout=0.5, alpha_init=1.5):
+    def __init__(self, in_dim, hidden_dim, out_dim,
+                 cluster_id: Tensor, K: int,
+                 dropout: float = 0.5,
+                 gamma_init: float = -4.0,        # sigmoid(gamma) ~ 0.018
+                 min_cluster_size: int = 2):
         super().__init__()
         self.conv1 = GCNConv(in_dim, hidden_dim, add_self_loops=True, normalize=True)
-        self.conv2 = GCNConv(hidden_dim, out_dim, add_self_loops=True, normalize=True)
-        self.lin_skip = nn.Linear(hidden_dim, out_dim, bias=True)
-        # learnable, non-negative scaling for skip head
-        self.alpha = nn.Parameter(torch.tensor([alpha_init], dtype=torch.float))
-        self.alpha_relu = nn.ReLU()
+
+        # TWO parallel second layers
+        self.conv2_node    = GCNConv(hidden_dim, out_dim, add_self_loops=True, normalize=True)  # node graph
+        self.conv2_cluster = GCNConv(hidden_dim, out_dim, add_self_loops=True, normalize=True)  # cluster graph
+
         self.dropout = dropout
-        self.register_buffer("cluster_id", cluster_id)
-        self.K = K
+        self.register_buffer("cluster_id", cluster_id.long())
+        self.K = int(K)
+
+        # precompute cluster sizes once
+        sizes = torch.bincount(self.cluster_id, minlength=self.K)
+        self.register_buffer("sizes", sizes)
+
+        # gate for pooled branch: beta = sigmoid(gamma) in (0,1), start ~0
+        self.gamma = nn.Parameter(torch.tensor(float(gamma_init)))
+        self.min_cluster_size = int(min_cluster_size)
 
     def forward(self, x, edge_index):
-        x1 = F.relu(self.conv1(x, edge_index))
-        x1 = F.dropout(x1, p=self.dropout, training=self.training)
-        # pool and conv on pooled graph
-        x_p, ei_p = pool_by_partition(x1, edge_index, self.cluster_id, self.K)
-        x_p = self.conv2(x_p, ei_p)           # [K, C]
-        up = x_p[self.cluster_id]             # [N, C]
-        skip = self.lin_skip(x1)              # [N, C]
-        logits = up + self.alpha_relu(self.alpha) * skip
+        # 1) First GCN layer on the NODE graph
+        h1 = F.relu(self.conv1(x, edge_index))
+        h1 = F.dropout(h1, p=self.dropout, training=self.training)
+
+        # 2) NODE branch: second layer on the node graph
+        logits_node = self.conv2_node(h1, edge_index)  # [N, C]
+
+        # 3) POOLED branch: pool h1, run on cluster graph, broadcast back
+        h1_pool, ei_pool = pool_by_partition(h1, edge_index, self.cluster_id, self.K)   # [K, H], [2, E']
+        logits_poolK = self.conv2_cluster(h1_pool, ei_pool)                              # [K, C]
+        up = logits_poolK[self.cluster_id]                                               # [N, C]
+
+        # 4) MASK tiny clusters (e.g., singletons or size-2 if you want)
+        mask = (self.sizes[self.cluster_id] >= self.min_cluster_size).float().unsqueeze(-1)  # [N,1]
+        up = up * mask
+
+        # 5) Softly add pooled branch
+        beta = torch.sigmoid(self.gamma)   # scalar in (0,1), starts ~0
+        logits = logits_node + beta * up
         return logits, 0.0
 
 class TopKPoolBroadcastGCN(nn.Module):
@@ -436,7 +462,7 @@ def run_once(args, seed: int):
 
     # Instantiate models
     base_model = PlainGCN(data.num_features, args.hidden, data.num_classes, dropout=args.dropout)
-    lrmc_model = LrmcSeededPoolGCN(data.num_features, args.hidden, data.num_classes, cluster_id=cluster_id.to(data.x.device), K=K, dropout=args.dropout, alpha_init=args.alpha_init)
+    lrmc_model = LrmcSeededPoolGCN(data.num_features, args.hidden, data.num_classes, cluster_id=cluster_id.to(data.x.device), K=K, dropout=args.dropout, min_cluster_size=args.min_cluster_size)
     diff_model = DiffPoolOneShot(data.num_features, args.hidden, data.num_classes, K=K, dropout=args.dropout)
     gpool_model = TopKPoolBroadcastGCN(data.num_features, args.hidden, data.num_classes, K_target=K, dropout=args.dropout)
 
@@ -454,6 +480,7 @@ def main():
     p.add_argument("--seeds_json", type=str, default=None, help="Path to L-RMC seeds JSON (clusters with member node IDs).")
     p.add_argument("--K", type=int, default=None, help="If provided, number of clusters (overrides k_ratio when seeds_json is absent).")
     p.add_argument("--k_ratio", type=float, default=0.5, help="Target K/N when --K is not provided. Higher -> smaller clusters.")
+    p.add_argument("--min_cluster_size", type=int, default=2, help="Only apply pooled path to clusters with size >= this; smaller ones are masked out.")
     p.add_argument("--hidden", type=int, default=64)
     p.add_argument("--dropout", type=float, default=0.5)
     p.add_argument("--epochs", type=int, default=400)

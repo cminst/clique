@@ -25,7 +25,7 @@ import java.util.*;
  * - Surrogate + α calibration and bounds: Section 5, eqs. (6)-(7), SeL.
  * - Ablation settings on ε and α on Cora: Section 7.3 and Figure 3.
  */
-class LRMCablations2_patched {
+class LRMCseedsCora {
 
     // Ablation grid
     static final double[] EPSILONS = {1e-8, 1e-6, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4, 20000, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e12, 1e13, 1e14};
@@ -128,7 +128,7 @@ class LRMCablations2_patched {
             }
 
             // Calibrated surrogate \tilde S_L(C)
-            final double score = k * (dbar - alpha * Math.sqrt(Q + epsilon));
+            final double score = k / (Q + epsilon);
 
             // Majority label of this component
             int maj = majorityLabel(nodes, G.labels, numClasses);
@@ -375,13 +375,14 @@ class LRMCablations2_patched {
     }
 
     // Export seeds as a node->cluster partition built from best snapshot per node
-    
-static void exportLrmcSeeds(
+
+    static void exportLrmcSeeds(
             List<clique2_ablations.SnapshotDTO> snaps,
             GraphData G,
             double epsilon,
             AlphaKind alphaKind,
             Path outJson) throws IOException {
+
         final int n = G.n;
         final boolean[] inC = new boolean[n];
 
@@ -390,7 +391,7 @@ static void exportLrmcSeeds(
         Arrays.fill(snapScore, Double.NEGATIVE_INFINITY);
         for (int i = 0; i < snaps.size(); i++) {
             final clique2_ablations.SnapshotDTO s = snaps.get(i);
-            final int[] nodes = s.nodes; // 0-based ids
+            final int[] nodes = s.nodes; // 0-based node ids
             final int k = nodes.length;
             if (k == 0) {
                 snapScore[i] = Double.NEGATIVE_INFINITY;
@@ -398,6 +399,7 @@ static void exportLrmcSeeds(
             }
             // mark nodes for alpha computations
             for (int u : nodes) inC[u] = true;
+
             final double dbar = s.sumDegIn / Math.max(1.0, k);
             final double Q = s.Q;
             final double alpha;
@@ -408,15 +410,16 @@ static void exportLrmcSeeds(
                 if (lam2 <= 1e-12) lam2 = 1e-12; // guard for nC=1 or numerical zeros
                 alpha = 1.0 / Math.sqrt(lam2);
             }
-            final double score = k * (dbar - alpha * Math.sqrt(Q + epsilon));
+            final double score = k / (Q + epsilon);
             snapScore[i] = score;
+
             // unmark
             for (int u : nodes) inC[u] = false;
         }
 
-        // 2) Choose one peak snapshot per evolving component.
-        // The component identifier is taken from SnapshotDTO if available (fields: root/componentId/compId/id).
-        // If not available, fall back to a deterministic proxy id (min node id in the snapshot).
+        // 2) Choose one peak snapshot per evolving component (exact: by component id).
+        //    Uses a component id embedded in SnapshotDTO (e.g., 'root' or 'component_id');
+        //    falls back to min(node) if not present.
         Map<Integer, Integer> bestIdxByComp = new LinkedHashMap<>();
         Map<Integer, Double> bestScoreByComp = new HashMap<>();
         Map<Integer, Integer> bestSizeByComp = new HashMap<>();
@@ -436,7 +439,8 @@ static void exportLrmcSeeds(
                 double prevSc = bestScoreByComp.get(compId);
                 int prevSize = bestSizeByComp.get(compId);
                 // Prefer higher score; tie-break by larger size, then earlier index
-                if (sc > prevSc || (Math.abs(sc - prevSc) <= 1e-12 && (k > prevSize || (k == prevSize && i < bestIdxByComp.get(compId))))) {
+                if (sc > prevSc || (Math.abs(sc - prevSc) <= 1e-12
+                        && (k > prevSize || (k == prevSize && i < bestIdxByComp.get(compId))))) {
                     bestIdxByComp.put(compId, i);
                     bestScoreByComp.put(compId, sc);
                     bestSizeByComp.put(compId, k);
@@ -444,7 +448,21 @@ static void exportLrmcSeeds(
             }
         }
 
-        // 3) Emit JSON: one cluster per component at its peak.
+        // Mark nodes covered by chosen peak snapshots.
+        boolean[] covered = new boolean[n];
+        int coveredCount = 0;
+        List<Integer> kept = new ArrayList<>(bestIdxByComp.values());
+        for (int sid : kept) {
+            for (int u : snaps.get(sid).nodes) {
+                if (!covered[u]) {
+                    covered[u] = true;
+                    coveredCount++;
+                }
+            }
+        }
+        final int singletonsToAdd = n - coveredCount;
+
+        // 3) Emit JSON: one cluster per component at its peak + singletons for uncovered nodes.
         try (BufferedWriter w = Files.newBufferedWriter(outJson, StandardCharsets.UTF_8)) {
             w.write("{\n");
             w.write("\"meta\":{");
@@ -452,18 +470,25 @@ static void exportLrmcSeeds(
             w.write(",\"alpha_kind\":\"" + (alphaKind == AlphaKind.DIAM ? "DIAM" : "INV_SQRT_LAMBDA2") + "\"");
             w.write(",\"n\":" + G.n);
             w.write(",\"m\":" + G.m);
-            w.write(",\"mode\":\"peaks_per_component\"");
+            w.write(",\"mode\":\"peaks_per_component+singletons\"");
+            w.write(",\"components_kept\":" + kept.size());
+            w.write(",\"covered_by_components\":" + coveredCount);
+            w.write(",\"singletons_added\":" + singletonsToAdd);
             w.write("},\n");
             w.write("\"clusters\":[\n");
 
             boolean first = true;
             int nextClusterId = 0;
+
+            // Emit the peak-per-component clusters
             for (Map.Entry<Integer, Integer> e : bestIdxByComp.entrySet()) {
                 final int compId = e.getKey();
                 final int sid = e.getValue();
                 final clique2_ablations.SnapshotDTO s = snaps.get(sid);
+
                 if (!first) w.write(",\n");
                 first = false;
+
                 w.write("  {\"cluster_id\":" + (nextClusterId++));
                 w.write(",\"component_id\":" + compId);
                 w.write(",\"snapshot_id\":" + sid);
@@ -475,9 +500,32 @@ static void exportLrmcSeeds(
                 w.write(",\"seed_nodes\":" + intArrayToJson(s.nodes));
                 w.write("}");
             }
+
+            // Emit singletons for uncovered nodes
+            for (int u = 0; u < n; u++) {
+                if (!covered[u]) {
+                    if (!first) w.write(",\n");
+                    first = false;
+
+                    int[] singleton = new int[]{u};
+                    w.write("  {\"cluster_id\":" + (nextClusterId++));
+                    w.write(",\"component_id\":-1");
+                    w.write(",\"snapshot_id\":-1");
+                    w.write(",\"score\":0.0");
+                    w.write(",\"k_seed\":1");
+                    w.write(",\"members\":" + intArrayToJson(singleton));
+                    w.write(",\"seed_nodes\":" + intArrayToJson(singleton));
+                    w.write("}");
+                }
+            }
+
             w.write("\n]}");
         }
-        System.out.println("# Wrote seeds: " + outJson.toAbsolutePath());
+
+        System.out.println("# Wrote seeds: " + outJson.toAbsolutePath()
+                + " | components_kept=" + kept.size()
+                + " | covered=" + coveredCount
+                + " | singletons_added=" + singletonsToAdd);
     }
 
     // Helper: get a stable component id for a snapshot; prefer explicit field, else min node id.
@@ -485,14 +533,20 @@ static void exportLrmcSeeds(
         try {
             java.lang.reflect.Field f;
             Class<?> cls = snap.getClass();
-            try { f = cls.getDeclaredField("root"); }
-            catch (NoSuchFieldException e1) {
-                try { f = cls.getDeclaredField("componentId"); }
-                catch (NoSuchFieldException e2) {
-                    try { f = cls.getDeclaredField("compId"); }
-                    catch (NoSuchFieldException e3) {
-                        try { f = cls.getDeclaredField("id"); }
-                        catch (NoSuchFieldException e4) { f = null; }
+            try {
+                f = cls.getDeclaredField("root");
+            } catch (NoSuchFieldException e1) {
+                try {
+                    f = cls.getDeclaredField("componentId");
+                } catch (NoSuchFieldException e2) {
+                    try {
+                        f = cls.getDeclaredField("compId");
+                    } catch (NoSuchFieldException e3) {
+                        try {
+                            f = cls.getDeclaredField("id");
+                        } catch (NoSuchFieldException e4) {
+                            f = null;
+                        }
                     }
                 }
             }
@@ -500,7 +554,7 @@ static void exportLrmcSeeds(
                 f.setAccessible(true);
                 Object v = f.get(snap);
                 if (v instanceof Integer) return ((Integer) v).intValue();
-                if (v instanceof Long)    return ((Long) v).intValue();
+                if (v instanceof Long) return ((Long) v).intValue();
                 if (v != null) return Integer.parseInt(String.valueOf(v));
             }
         } catch (Throwable t) {
