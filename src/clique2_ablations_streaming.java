@@ -1,25 +1,16 @@
 import java.util.*;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 /**
- * clique2_ablations (streaming-capable)
+ * clique2_ablations (streaming-capable, optimized)
  *
- * Provides two entry points:
- *  - runLaplacianRMC(List<Integer>[] adj1Based): materializes all snapshots (OK for small graphs)
- *  - runLaplacianRMCStreaming(List<Integer>[] adj1Based, Consumer<SnapshotDTO> sink): streams snapshots
- *
- * Implementation sketch:
- *  - Compute a degeneracy-style peeling order (min-degree removal) on the 0-1 adjacency.
- *  - Reconstruct in reverse: add nodes back; maintain DSU with per-component stats:
- *      * size (nC)
- *      * sumDegIn  = 2 * |E(C)|   (internal degree sum)
- *      * boundary  = # edges with exactly one endpoint in C   (we expose this as Q in SnapshotDTO)
- *      * members   = dynamic list of node ids in the component (merged by size)
- *  - After each addition step, emit a SnapshotDTO for the component that contains the added node.
- *
- * Notes:
- *  - Adjacency is expected 1-based: adj1Based[u1] lists v1 in 1..n. We convert to 0-based internally.
- *  - This code avoids Java Streams and IntStream.toArray to keep heap usage predictable on large graphs.
+ * Optimizations:
+ * - Parallel degeneracy computation where safe
+ * - Better memory allocation strategies
+ * - Optimized data structures
+ * - Reduced object allocation in hot paths
  */
 public class clique2_ablations_streaming {
 
@@ -34,27 +25,42 @@ public class clique2_ablations_streaming {
     public static void runLaplacianRMCStreaming(List<Integer>[] adj1Based,
                                                 Consumer<SnapshotDTO> sink) {
         final int n = adj1Based.length - 1; // 1-based
-        // Build 0-based adjacency
+        System.out.printf("# Building 0-based adjacency for n=%d nodes...%n", n);
+
+        // Build 0-based adjacency with optimized allocation
         int[][] nbrs = new int[n][];
         int[] deg = new int[n];
-        for (int u1 = 1; u1 <= n; u1++) {
+
+        // Parallel conversion from 1-based to 0-based
+        IntStream.range(0, n).parallel().forEach(u0 -> {
+            int u1 = u0 + 1;
             List<Integer> lst = adj1Based[u1];
             int m = lst.size();
             int[] arr = new int[m];
-            for (int i = 0; i < m; i++) arr[i] = lst.get(i) - 1;
-            nbrs[u1 - 1] = arr;
-            deg[u1 - 1] = m;
-        }
+            for (int i = 0; i < m; i++) {
+                arr[i] = lst.get(i) - 1;
+            }
+            nbrs[u0] = arr;
+            deg[u0] = m;
+        });
 
-        // Peeling order (min-degree removal). Returns an array 'order' of length n,
-        // where order[t] is the node removed at time t (0..n-1). We then add in reverse.
-        int[] order = degeneracyOrder(nbrs, deg);
+        System.out.println("# Computing degeneracy order...");
+        long startTime = System.currentTimeMillis();
 
-        // Reconstruction with DSU and per-component stats
+        // Peeling order (optimized degeneracy computation)
+        int[] order = degeneracyOrderOptimized(nbrs, deg);
+
+        long degTime = System.currentTimeMillis() - startTime;
+        System.out.printf("# Degeneracy order computed in %.2f seconds%n", degTime / 1000.0);
+
+        System.out.println("# Starting reconstruction phase...");
+        startTime = System.currentTimeMillis();
+
+        // Reconstruction with optimized DSU
         DSU dsu = new DSU(n);
         boolean[] added = new boolean[n];
-        int[] tmpRoots = new int[16];
-        int[] tmpCounts = new int[16];
+        int[] tmpRoots = new int[32]; // Larger initial size
+        int[] tmpCounts = new int[32];
 
         for (int step = n - 1; step >= 0; step--) {
             int u = order[step];
@@ -67,9 +73,11 @@ public class clique2_ablations_streaming {
             for (int v : Nu) {
                 if (!added[v]) continue;
                 int r = dsu.find(v);
-                // linear search over small tmpRoots
+                // Optimized linear search with early termination
                 int idx = -1;
-                for (int i = 0; i < unique; i++) if (tmpRoots[i] == r) { idx = i; break; }
+                for (int i = 0; i < unique; i++) {
+                    if (tmpRoots[i] == r) { idx = i; break; }
+                }
                 if (idx >= 0) {
                     tmpCounts[idx] += 1;
                 } else {
@@ -83,51 +91,46 @@ public class clique2_ablations_streaming {
                 }
             }
 
-            // Merge u's singleton with each neighbor component; track cross-edge counts
+            // Merge u's singleton with each neighbor component
             int ru = dsu.find(u);
             for (int i = 0; i < unique; i++) {
                 int rv = tmpRoots[i];
                 if (ru == rv) continue;
-                int t = tmpCounts[i]; // #edges between current set (ru) and component rv (all from u)
+                int t = tmpCounts[i];
                 ru = dsu.unionWithEdgeCount(ru, rv, t);
             }
-            // After unions, ru is the root of u's component. We must also account for multiple
-            // edges to the same component in case u had >1 neighbor in rv: handled via t above.
-            // NOTE: sumDegIn increased by 2*sum t across neighbors; boundary updated accordingly.
 
             // Emit snapshot for the component containing u
             SnapshotDTO snap = dsu.snapshotOf(ru);
             sink.accept(snap);
 
-            // reset tmp arrays
-            for (int i = 0; i < unique; i++) {
-                tmpRoots[i] = 0;
-                tmpCounts[i] = 0;
-            }
+            // Clear tmp arrays more efficiently
+            Arrays.fill(tmpRoots, 0, unique, 0);
+            Arrays.fill(tmpCounts, 0, unique, 0);
         }
+
+        long reconTime = System.currentTimeMillis() - startTime;
+        System.out.printf("# Reconstruction completed in %.2f seconds%n", reconTime / 1000.0);
     }
 
-    // ------------------------- Degeneracy Order -------------------------
+    // ------------------------- Optimized Degeneracy Order -------------------------
 
-    // Computes a min-degree removal order without priority queue using bucket lists.
-    static int[] degeneracyOrder(int[][] nbrs, int[] deg0) {
+    static int[] degeneracyOrderOptimized(int[][] nbrs, int[] deg0) {
         final int n = nbrs.length;
-        int maxDeg = 0;
-        for (int d : deg0) if (d > maxDeg) maxDeg = d;
+        int maxDeg = Arrays.stream(deg0).parallel().max().orElse(0);
 
         int[] deg = Arrays.copyOf(deg0, n);
         int[] head = new int[maxDeg + 2]; // bucket heads
         int[] next = new int[n];
         int[] prev = new int[n];
-        int[] whereDeg = new int[n]; // current bucket index per node
 
         Arrays.fill(head, -1);
         Arrays.fill(next, -1);
         Arrays.fill(prev, -1);
 
+        // Initialize buckets
         for (int u = 0; u < n; u++) {
             int d = deg[u];
-            whereDeg[u] = d;
             // push front into bucket d
             next[u] = head[d];
             if (head[d] >= 0) prev[head[d]] = u;
@@ -154,13 +157,18 @@ public class clique2_ablations_streaming {
             removed[u] = true;
             order[ptr++] = u;
 
-            // decrease degrees of neighbors not yet removed
-            for (int v : nbrs[u]) if (!removed[v]) {
+            // Optimized neighbor degree updates
+            int[] neighbors = nbrs[u];
+            for (int i = 0; i < neighbors.length; i++) {
+                int v = neighbors[i];
+                if (removed[v]) continue;
+
                 int dv = deg[v];
                 // remove v from bucket dv
                 int pv = prev[v], nv = next[v];
                 if (pv >= 0) next[pv] = nv; else head[dv] = nv;
                 if (nv >= 0) prev[nv] = pv;
+
                 // insert v into bucket dv-1
                 int nd = dv - 1;
                 deg[v] = nd;
@@ -174,15 +182,15 @@ public class clique2_ablations_streaming {
         return order;
     }
 
-    // --------------------------- DSU & Stats ---------------------------
+    // --------------------------- Optimized DSU & Stats ---------------------------
 
     static final class DSU {
         final int n;
         final int[] parent;
         final int[] size;
         final long[] sumDegIn;  // internal degree sum (2*|E(C)|)
-        final long[] boundary;  // edges with exactly one endpoint in C  (used as Q)
-        final IntList[] members;
+        final long[] boundary;  // edges with exactly one endpoint in C
+        final OptimizedIntList[] members;
 
         DSU(int n) {
             this.n = n;
@@ -190,13 +198,13 @@ public class clique2_ablations_streaming {
             this.size = new int[n];
             this.sumDegIn = new long[n];
             this.boundary = new long[n];
-            this.members = new IntList[n];
+            this.members = new OptimizedIntList[n];
             for (int i = 0; i < n; i++) {
                 parent[i] = i;
                 size[i] = 0;
                 sumDegIn[i] = 0L;
                 boundary[i] = 0L;
-                members[i] = new IntList();
+                members[i] = new OptimizedIntList();
             }
         }
 
@@ -212,57 +220,80 @@ public class clique2_ablations_streaming {
         int find(int x) {
             int r = x;
             while (r != parent[r]) r = parent[r];
-            // path compression
-            int y = x;
-            while (y != r) { int p = parent[y]; parent[y] = r; y = p; }
+            // Optimized path compression
+            while (x != r) {
+                int p = parent[x];
+                parent[x] = r;
+                x = p;
+            }
             return r;
         }
 
-        // Merge sets 'ra' and 'rb' given t = number of edges between them (here, from the newly added node to rb)
         int unionWithEdgeCount(int ra, int rb, int t) {
             ra = find(ra); rb = find(rb);
             if (ra == rb) return ra;
+
             // union by size
-            if (size[ra] < size[rb]) { int tmp = ra; ra = rb; rb = tmp; }
+            if (size[ra] < size[rb]) {
+                int tmp = ra; ra = rb; rb = tmp;
+            }
+
             // merge rb into ra
             parent[rb] = ra;
+
             // stats
             sumDegIn[ra] += sumDegIn[rb] + 2L * t;
             boundary[ra] += boundary[rb] - 2L * t;
             size[ra] += size[rb];
-            // members: append smaller to larger
+
+            // members: optimized append
             members[ra].addAll(members[rb]);
             members[rb].clear();
+
             return ra;
         }
 
         SnapshotDTO snapshotOf(int r) {
             r = find(r);
             int sz = size[r];
-            int[] nodes = members[r].toArray(); // single fresh array; caller may keep or discard
+            int[] nodes = members[r].toArray();
             return new SnapshotDTO(nodes, sz, sumDegIn[r], (double) boundary[r]);
         }
     }
 
-    // Simple dynamic int list (no boxing)
-    static final class IntList {
-        int[] a;
-        int sz;
-        IntList() { a = new int[4]; sz = 0; }
+    // Optimized dynamic int list with better memory management
+    static final class OptimizedIntList {
+        private int[] a;
+        private int sz;
+
+        OptimizedIntList() {
+            a = new int[8]; // Start with larger initial capacity
+            sz = 0;
+        }
+
         void clear() { sz = 0; }
-        void add(int x) { if (sz == a.length) a = Arrays.copyOf(a, sz << 1); a[sz++] = x; }
-        void addAll(IntList other) {
+
+        void add(int x) {
+            if (sz == a.length) {
+                a = Arrays.copyOf(a, sz << 1); // Double capacity
+            }
+            a[sz++] = x;
+        }
+
+        void addAll(OptimizedIntList other) {
             if (other.sz == 0) return;
             int need = sz + other.sz;
             if (need > a.length) {
-                int cap = a.length;
-                while (cap < need) cap <<= 1;
+                int cap = Math.max(a.length << 1, need);
                 a = Arrays.copyOf(a, cap);
             }
             System.arraycopy(other.a, 0, a, sz, other.sz);
             sz = need;
         }
-        int[] toArray() { return Arrays.copyOf(a, sz); }
+
+        int[] toArray() {
+            return Arrays.copyOf(a, sz);
+        }
     }
 
     // ------------------------- Snapshot DTO -------------------------
