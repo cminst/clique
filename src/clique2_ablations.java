@@ -7,7 +7,7 @@ public class clique2_ablations {
 
     public static List<SnapshotDTO> main(String[] args) throws Exception {
         if (args.length < 2) {
-            System.err.println("Usage: java clique2_mk <epsilon> <inputfile>");
+            System.err.println("Usage: java clique2_ablations <epsilon> <inputfile>");
         }
         final double EPS = Double.parseDouble(args[0]);
 

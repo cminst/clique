@@ -27,3 +27,9 @@ src/tmp_table1/
 
 # macOS system files
 .DS_Store
+
+# Dataset files
+*.cites
+*.content
+
+src/UsacoProbs/data/*

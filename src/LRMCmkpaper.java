@@ -38,7 +38,7 @@ class LRMCmkpaper {
 
     public static void main(String[] args) throws Exception {
         if (args.length < 2) {
-            System.err.println("Usage: java LRMCSim <CLIQUE2_MAIN> <output_csv_file>");
+            System.err.println("Usage: java LRMCmkpaper <CLIQUE2_MAIN> <output_csv_file>");
             return;
         }
 

@@ -4,9 +4,6 @@ import java.io.*;
 import java.util.*;
 import java.util.Locale;
 
-// ===============================================
-// >>> DO NOT USE THIS FOR SPEED BENCHMARKING! <<<
-// ===============================================
 public class clique2_mk_benchmark_accuracy {
     static int n, m;
 
@@ -38,16 +35,15 @@ public class clique2_mk_benchmark_accuracy {
         r.close();
 
         long t0 = System.nanoTime();
-        Result res = runLaplacianRMC(adj, EPS);  // <- optimized O(Mk)
+        Result res = runLaplacianRMC(adj, EPS);
         long t1 = System.nanoTime();
 
-        if (args.length >= 3) {
-            try (PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(args[2])))) {
-                for (int i = 0; i < n; i++) {
-                    pw.println(i + " " + (res.bestMask[i] ? 1 : 0)); // i is 0-based in the current subgraph
-                }
-            }
+        // Print component nodes on a separate line
+        System.out.print("COMPONENT:");
+        for (int node : res.bestComponent) {
+            System.out.print(" " + node);
         }
+        System.out.println();
 
         System.out.printf(Locale.US, "%.6f, %d%n", res.bestSL, res.bestRoot);
         System.out.printf(Locale.US, "Runtime: %.3f ms%n", (t1 - t0) / 1_000_000.0);
@@ -55,11 +51,12 @@ public class clique2_mk_benchmark_accuracy {
 
     /** Optimized O(Mk) algorithm using reverse-peeling orientation + pred_sum pushes. */
     static Result runLaplacianRMC(List<Integer>[] adj, double EPS) {
-        // -------- Phase 1: peeling --------
+        // Initialize n from adjacency list
+        final int n = adj.length - 1;
+        
+        // -------- Phase 1: peeling (same as before) --------
         int[] deg0 = new int[n + 1];
-        boolean[] bestMask = new boolean[n];
         PriorityQueue<Pair> pq = new PriorityQueue<>();
-
         for (int i = 1; i <= n; i++) {
             deg0[i] = adj[i].size();
             pq.add(new Pair(i, deg0[i]));
@@ -111,7 +108,6 @@ public class clique2_mk_benchmark_accuracy {
             if (succ[v].size() > 1) {
                 succ[v].sort(Comparator.comparingInt(w -> idx[w]));
             }
-            // pred[v] need not be sorted
         }
 
         // -------- Phase 2: reverse reconstruction with O(k) per edge --------
@@ -121,9 +117,24 @@ public class clique2_mk_benchmark_accuracy {
 
         double bestSL = 0.0;
         int bestRoot = 0;
+        Set<Integer> bestComponent = new HashSet<>();
+        double bestScore = 0.0;
 
         // helper: sum of degrees of active successors of v whose idx < T
         final SumSucc sumSucc = new SumSucc(succ, idx, deg);
+
+        // helper: calculate RMC score (size * min_degree) for a component
+        java.util.function.Function<Integer, Double> calculateRMCScore = (root) -> {
+            int size = 0;
+            int minDeg = Integer.MAX_VALUE;
+            for (int i = 1; i <= n; i++) {
+                if (dsu.made[i] && dsu.find(i) == root) {
+                    size++;
+                    minDeg = Math.min(minDeg, deg[i]);
+                }
+            }
+            return size == 0 ? 0.0 : size * minDeg;
+        };
 
         for (int u : addOrder) {
             dsu.makeIfNeeded(u); // create singleton component
@@ -131,13 +142,26 @@ public class clique2_mk_benchmark_accuracy {
             {
                 int ru = dsu.find(u);
                 double sL = dsu.size[ru] / (dsu.Q[ru] + EPS);
-                if (sL > bestSL) { bestSL = sL; bestRoot = ru; }
+                if (sL > bestSL) {
+                    bestSL = sL;
+                    bestRoot = ru;
+                    double currentScore = calculateRMCScore.apply(ru);
+                    bestScore = currentScore;
+
+                    // Snapshot current component
+                    bestComponent.clear();
+                    for (int i = 1; i <= n; i++) {
+                        if (dsu.made[i] && dsu.find(i) == ru) {
+                            bestComponent.add(i);
+                        }
+                    }
+                }
             }
 
             long Su = 0L; // running sum over degrees of neighbors already attached to u
             final int Tu = idx[u];
 
-            // connect u to all its predecessors (earlier neighbors)
+            // connect u to all its predecessors
             for (int v : pred[u]) {
                 long a = deg[u];
                 long b = deg[v];
@@ -168,26 +192,25 @@ public class clique2_mk_benchmark_accuracy {
                 double sL = dsu.size[r] / (dsu.Q[r] + EPS);
                 if (sL > bestSL) {
                     bestSL = sL;
-                    bestRoot = ru;
+                    bestRoot = r;
+                    double currentScore = calculateRMCScore.apply(r);
+                    bestScore = currentScore;
 
-                    // Snapshot membership of ru's component at this moment.
-                    // Simple approach: scan all nodes and compare DSU roots.
-                    // If this is slow, switch to the "union log + replay" variant.
-                    Arrays.fill(bestMask, false);
-                    for (int i = 0; i < n; i++) {
-                        if (dsu.find(i) == ru) bestMask[i] = true;
+                    // Snapshot current component
+                    bestComponent.clear();
+                    for (int i = 1; i <= n; i++) {
+                        if (dsu.made[i] && dsu.find(i) == r) {
+                            bestComponent.add(i);
+                        }
                     }
                 }
 
-                // degree increments
                 deg[u] += 1;
                 deg[v] += 1;
 
-                // push +1 to predSum of successors (outdegree ≤ k)
                 for (int y : succ[u]) predSum[y] += 1;
                 for (int y : succ[v]) predSum[y] += 1;
 
-                // maintain Su: add deg[v] AFTER its increment
                 Su += deg[v];
             }
         }
@@ -195,7 +218,8 @@ public class clique2_mk_benchmark_accuracy {
         Result out = new Result();
         out.bestSL = bestSL;
         out.bestRoot = bestRoot;
-        out.bestMask = bestMask;
+        out.bestComponent = bestComponent;
+        out.bestScore = bestScore;
         return out;
     }
 
@@ -228,7 +252,8 @@ public class clique2_mk_benchmark_accuracy {
     static class Result {
         double bestSL;
         int bestRoot;
-        boolean[] bestMask; //  length n, true if node is in best cluster
+        Set<Integer> bestComponent;
+        double bestScore;
     }
 
     static class Pair implements Comparable<Pair> {
