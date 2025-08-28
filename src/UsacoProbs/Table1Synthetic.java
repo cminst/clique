@@ -249,23 +249,30 @@ public class Table1Synthetic {
     public static void main(String[] args) {
         double eps = 10; // Default epsilon value
         int numRuns = 10; // Default number of runs
+        boolean lrmcOnly = false; // Flag to run only LRMC
 
-        if (args.length > 0) {
-            try {
-                eps = Double.parseDouble(args[0]);
-            } catch (NumberFormatException e) {
-                System.err.println("Invalid epsilon value. Using default value of 10.");
+        // Parse command line arguments
+        for (int i = 0; i < args.length; i++) {
+            if ("--lrmc-only".equals(args[i])) {
+                lrmcOnly = true;
+            } else if (i == 0) {
+                // First argument (not a flag) is epsilon
+                try {
+                    eps = Double.parseDouble(args[i]);
+                } catch (NumberFormatException e) {
+                    System.err.println("Invalid epsilon value. Using default value of 10.");
+                }
             }
         }
 
         try {
-            runAndWriteCsv(eps, numRuns);
+            runAndWriteCsv(eps, numRuns, lrmcOnly);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static void runAndWriteCsv(double eps, int numRuns) throws IOException {
+    private static void runAndWriteCsv(double eps, int numRuns, boolean lrmcOnly) throws IOException {
         final int nTotal = 2500;
 
         // Parameter sweep
@@ -295,23 +302,31 @@ public class Table1Synthetic {
                             SyntheticGraph g = generatePlantedClusterGraph(nTotal, k, pIn, pOut, rand);
 
                             EvaluationResult lrmc = runSingleLRMC(g, eps);
-                            EvaluationResult kcore = runBestKCore(g);
-                            EvaluationResult densest = runDensestSingle(g);
 
                             lrmcAgg.addResult(lrmc);
-                            kcoreAgg.addResult(kcore);
-                            densestAgg.addResult(densest);
+
+                            // Only run k-core and densest algorithms if not in lrmc-only mode
+                            if (!lrmcOnly) {
+                                EvaluationResult kcore = runBestKCore(g);
+                                EvaluationResult densest = runDensestSingle(g);
+
+                                kcoreAgg.addResult(kcore);
+                                densestAgg.addResult(densest);
+                            }
                         }
 
-                        // Average the results
                         lrmcAgg.average();
-                        kcoreAgg.average();
-                        densestAgg.average();
 
-                        // Write averaged results
                         writeAggregatedRow(w, "L-RMC", k, pIn, pOut, lrmcAgg);
-                        writeAggregatedRow(w, "k-core", k, pIn, pOut, kcoreAgg);
-                        writeAggregatedRow(w, "Densest", k, pIn, pOut, densestAgg);
+
+                        if (!lrmcOnly) {
+                            kcoreAgg.average();
+                            densestAgg.average();
+
+                            writeAggregatedRow(w, "k-core", k, pIn, pOut, kcoreAgg);
+                            writeAggregatedRow(w, "Densest", k, pIn, pOut, densestAgg);
+                        }
+
                         System.out.printf("Finished instance: k=%d, pIn=%.1f, pOut=%.2f (averaged over %d runs)%n", k, pIn, pOut, numRuns);
                         System.out.flush();
                     }
