@@ -35,3 +35,5 @@ src/tmp_table1/
 src/UsacoProbs/data/*
 
 src/reddit_edges.txt
+
+out/*
