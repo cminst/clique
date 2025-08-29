@@ -1,4 +1,5 @@
 import java.util.*;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
@@ -114,7 +115,6 @@ public class clique2_ablations_streaming {
     }
 
     // Optimized Degeneracy Order
-
     static int[] degeneracyOrderOptimized(int[][] nbrs, int[] deg0) {
         final int n = nbrs.length;
         int maxDeg = Arrays.stream(deg0).parallel().max().orElse(0);
@@ -183,7 +183,6 @@ public class clique2_ablations_streaming {
     }
 
     // Optimized DSU & Stats
-
     static final class DSU {
         final int n;
         final int[] parent;
