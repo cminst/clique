@@ -2,32 +2,29 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.IntStream;
 
 /**
- * LRMCseedsReddit_streamsafe.java (Optimized Version)
+ * LRMCseedsReddit_streamsafe.java
  *
- * Memory-lean-ish seeds exporter for Reddit with performance optimizations:
- * - Parallel graph loading using memory-mapped files
- * - Better memory allocation strategies
- * - Optimized data structures
+ * Memory-lean-ish seeds exporter for Reddit. It will try to call a STREAMING
+ * reconstruction entry point (if your clique2_ablations.java defines it):
+ *
+ *   public static void runLaplacianRMCStreaming(List<Integer>[] adj1Based,
+ *                                               java.util.function.Consumer<SnapshotDTO> sink)
+ *
+ * If not found, it falls back to the old runLaplacianRMC(adj1Based) and will
+ * materialize all snapshots (may OOM on Reddit). The idea is you can add the
+ * streaming method later without changing this file again.
  *
  * Usage:
- *   java -XX:+UseG1GC -XX:+UnlockExperimentalVMOptions -XX:+UseStringDeduplication \
- *        -XX:NewRatio=1 -Xmx16g -Xms8g -XX:+AlwaysPreTouch \
- *        LRMCseedsReddit_streamsafe reddit_edges.txt seeds_reddit.json [DIAM|INV_SQRT_LAMBDA2] [epsilon]
+ *   java -Xmx8g -Xms4g LRMCseedsReddit_streamsafe \
+ *        reddit_edges.txt seeds_reddit.json [DIAM|INV_SQRT_LAMBDA2] [epsilon]
  */
 public class LRMCseedsReddit_streamsafe {
 
@@ -41,52 +38,29 @@ public class LRMCseedsReddit_streamsafe {
         final AlphaKind alphaKind = (args.length >= 3 ? parseAlpha(args[2]) : AlphaKind.DIAM);
         final double eps = (args.length >= 4 ? Double.parseDouble(args[3]) : 1e-6);
 
-        System.out.println("# Loading Reddit edge list with optimized parallel loader...");
-        long startTime = System.currentTimeMillis();
-
-        GraphData G = loadRedditEdgeListOptimized(edgesPath);
-
-        long loadTime = System.currentTimeMillis() - startTime;
-        System.out.printf(Locale.US, "# Loaded Reddit edge list: n=%d, m=%d (%.2f seconds)%n",
-                         G.n, G.m, loadTime / 1000.0);
+        GraphData G = loadRedditEdgeList(edgesPath);
+        System.out.printf(Locale.US, "# Loaded Reddit edge list: n=%d, m=%d%n", G.n, G.m);
 
         PeakTracker tracker = new PeakTracker(G, eps, alphaKind);
 
-        boolean usedStreaming = false;
-        try {
-            Method meth = clique2_ablations_streaming.class.getMethod(
-                    "runLaplacianRMCStreaming",
-                    List[].class, java.util.function.Consumer.class);
-            System.out.println("# Found streaming entry point. Running streaming reconstruction...");
-            startTime = System.currentTimeMillis();
-            meth.invoke(null, (Object) G.adj1Based, (java.util.function.Consumer<clique2_ablations_streaming.SnapshotDTO>) tracker);
-            usedStreaming = true;
-        } catch (NoSuchMethodException nsme) {
-            System.out.println("# Streaming entry point not found; falling back to runLaplacianRMC (may be memory heavy).");
-            startTime = System.currentTimeMillis();
-            List<clique2_ablations_streaming.SnapshotDTO> snaps = clique2_ablations_streaming.runLaplacianRMC(G.adj1Based);
-            for (clique2_ablations_streaming.SnapshotDTO s : snaps) tracker.accept(s);
-        }
-
-        long algoTime = System.currentTimeMillis() - startTime;
-        System.out.printf(Locale.US, "# Algorithm completed in %.2f seconds%n", algoTime / 1000.0);
+        System.out.println("# Found streaming entry point. Running streaming reconstruction...");
+        clique2_ablations_streaming.runLaplacianRMCStreaming(G.adj1Based, tracker);
 
         tracker.writeJson(outSeeds);
-        System.out.println("# Done. wrote " + outSeeds.toAbsolutePath()
-                + (usedStreaming ? " (streaming)" : " (materialized)"));
+        System.out.println("# Done. wrote " + outSeeds.toAbsolutePath());
     }
 
-    // ------------- Optimized Streaming peak tracker -------------
+    // Streaming peak tracker
     static final class PeakTracker implements Consumer<clique2_ablations_streaming.SnapshotDTO> {
         final GraphData G;
         final double epsilon;
         final AlphaKind alphaKind;
 
         final boolean[] inC;
-        final Map<Integer, Integer> bestIdxByComp = new ConcurrentHashMap<>();
-        final Map<Integer, Double> bestScoreByComp = new ConcurrentHashMap<>();
-        final List<Rec> arrivals = Collections.synchronizedList(new ArrayList<>());
-        final AtomicInteger idx = new AtomicInteger(0);
+        final Map<Integer, Integer> bestIdxByComp = new LinkedHashMap<>();
+        final Map<Integer, Double> bestScoreByComp = new HashMap<>();
+        final List<Rec> arrivals = new ArrayList<>();
+        int idx = 0;
 
         static final class Rec {
             final int compId;
@@ -108,40 +82,31 @@ public class LRMCseedsReddit_streamsafe {
             final int[] nodes = s.nodes;
             final int k = nodes.length;
             if (k == 0) return;
-
-            // Mark nodes as in component (thread-safe for this use case)
-            synchronized(inC) {
-                for (int u : nodes) inC[u] = true;
-            }
+            for (int u : nodes) inC[u] = true;
 
             final double dbar = s.sumDegIn / Math.max(1.0, k);
             final double Q = s.Q;
             final double alpha = (alphaKind == AlphaKind.DIAM)
-                    ? approxDiameterOptimized(nodes, G.adj1Based, inC)
+                    ? approxDiameter(nodes, G.adj1Based, inC)
                     : 1.0; // simple fallback for lambda2
 
-            final double sc = k * (dbar - alpha * Math.sqrt(Q + epsilon));
+            final double sc = k / (Q + epsilon);
             final int compId = getSnapshotComponentId(s, nodes);
-            final int sid = idx.getAndIncrement();
+            final int sid = idx++;
 
-            bestScoreByComp.merge(compId, sc, (oldScore, newScore) -> {
-                if (newScore > oldScore) {
-                    bestIdxByComp.put(compId, sid);
-                    return newScore;
-                }
-                return oldScore;
-            });
-
+            if (!bestIdxByComp.containsKey(compId) || sc > bestScoreByComp.get(compId)) {
+                bestIdxByComp.put(compId, sid);
+                bestScoreByComp.put(compId, sc);
+            }
             arrivals.add(new Rec(compId, sid, sc, Arrays.copyOf(nodes, nodes.length)));
 
-            synchronized(inC) {
-                for (int u : nodes) inC[u] = false;
-            }
+            for (int u : nodes) inC[u] = false;
         }
 
         void writeJson(Path outJson) throws IOException {
             final int n = G.n;
             boolean[] covered = new boolean[n];
+            int coveredCount = 0;
 
             try (BufferedWriter w = Files.newBufferedWriter(outJson, StandardCharsets.UTF_8)) {
                 w.write("{\n");
@@ -150,7 +115,7 @@ public class LRMCseedsReddit_streamsafe {
                 w.write(",\"alpha_kind\":\"" + (alphaKind == AlphaKind.DIAM ? "DIAM" : "INV_SQRT_LAMBDA2") + "\"");
                 w.write(",\"n\":" + G.n);
                 w.write(",\"m\":" + G.m);
-                w.write(",\"mode\":\"peaks_per_component+singletons(optimized-stream-or-fallback)\"");
+                w.write(",\"mode\":\"peaks_per_component+singletons(stream-or-fallback)\"");
                 w.write("},\n");
                 w.write("\"clusters\":[\n");
 
@@ -170,7 +135,7 @@ public class LRMCseedsReddit_streamsafe {
                         w.write(",\"members\":" + intArrayToJson(r.nodes));
                         w.write(",\"seed_nodes\":" + intArrayToJson(r.nodes));
                         w.write("}");
-                        for (int u : r.nodes) if (!covered[u]) { covered[u] = true; }
+                        for (int u : r.nodes) if (!covered[u]) { covered[u] = true; coveredCount++; }
                     }
                 }
 
@@ -195,189 +160,83 @@ public class LRMCseedsReddit_streamsafe {
         }
     }
 
-    // ---------- Optimized Reddit Graph Loading ----------
-    static GraphData loadRedditEdgeListOptimized(Path edgesFile) throws IOException {
-        long fileSize = Files.size(edgesFile);
-        System.out.printf("# File size: %.2f MB%n", fileSize / (1024.0 * 1024.0));
-
-        if (fileSize > 100_000_000) { // 100MB+, use memory-mapped approach
-            return loadWithMemoryMapping(edgesFile);
-        } else {
-            return loadWithParallelStreams(edgesFile);
-        }
-    }
-
-    static GraphData loadWithMemoryMapping(Path edgesFile) throws IOException {
-        System.out.println("# Using memory-mapped file loading for large graph...");
-
-        try (FileChannel channel = FileChannel.open(edgesFile, StandardOpenOption.READ)) {
-            long size = channel.size();
-            ByteBuffer buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, size);
-
-            // First pass: scan for max node and count edges
-            AtomicInteger maxNodeRef = new AtomicInteger(-1);
-            AtomicLong edgeCountRef = new AtomicLong(0);
-            ConcurrentHashMap<Integer, AtomicInteger> degreeMap = new ConcurrentHashMap<>();
-
-            List<String> lines = new ArrayList<>();
-            StringBuilder lineBuilder = new StringBuilder();
-
-            while (buffer.hasRemaining()) {
-                char c = (char) buffer.get();
-                if (c == '\n' || c == '\r') {
-                    if (lineBuilder.length() > 0) {
-                        lines.add(lineBuilder.toString());
-                        lineBuilder.setLength(0);
-                    }
-                } else {
-                    lineBuilder.append(c);
-                }
-            }
-            if (lineBuilder.length() > 0) {
-                lines.add(lineBuilder.toString());
-            }
-
-            // Process lines in parallel
-            lines.parallelStream()
-                .filter(s -> !s.trim().isEmpty() && !s.startsWith("#"))
-                .forEach(s -> {
-                    String[] tok = s.split("\\s+|,");
-                    if (tok.length >= 2) {
-                        try {
-                            int u = Integer.parseInt(tok[0]);
-                            int v = Integer.parseInt(tok[1]);
-                            if (u != v) {
-                                degreeMap.computeIfAbsent(u, k -> new AtomicInteger(0)).incrementAndGet();
-                                degreeMap.computeIfAbsent(v, k -> new AtomicInteger(0)).incrementAndGet();
-                                maxNodeRef.updateAndGet(max -> Math.max(max, Math.max(u, v)));
-                                if (u < v) edgeCountRef.incrementAndGet();
-                            }
-                        } catch (NumberFormatException e) {
-                            // Skip malformed lines
-                        }
-                    }
-                });
-
-            return buildGraphFromData(lines, maxNodeRef.get(), edgeCountRef.get(), degreeMap);
-        }
-    }
-
-    static GraphData loadWithParallelStreams(Path edgesFile) throws IOException {
-        System.out.println("# Using parallel stream loading...");
-
-        List<String> allLines = Files.readAllLines(edgesFile, StandardCharsets.UTF_8);
-
-        // First pass: analyze in parallel
-        AtomicInteger maxNodeRef = new AtomicInteger(-1);
-        AtomicLong edgeCountRef = new AtomicLong(0);
-        ConcurrentHashMap<Integer, AtomicInteger> degreeMap = new ConcurrentHashMap<>();
-
-        allLines.parallelStream()
-            .filter(s -> !s.trim().isEmpty() && !s.startsWith("#"))
-            .forEach(s -> {
+    // Load Reddit from edge list (preallocated)
+    static GraphData loadRedditEdgeList(Path edgesFile) throws IOException {
+        int[] deg = new int[1 << 16];
+        int maxNode = -1;
+        long mUndir = 0;
+        try (BufferedReader br = Files.newBufferedReader(edgesFile, StandardCharsets.UTF_8)) {
+            String s;
+            while ((s = br.readLine()) != null) {
+                s = s.trim();
+                if (s.isEmpty() || s.startsWith("#")) continue;
                 String[] tok = s.split("\\s+|,");
-                if (tok.length >= 2) {
-                    try {
-                        int u = Integer.parseInt(tok[0]);
-                        int v = Integer.parseInt(tok[1]);
-                        if (u != v) {
-                            degreeMap.computeIfAbsent(u, k -> new AtomicInteger(0)).incrementAndGet();
-                            degreeMap.computeIfAbsent(v, k -> new AtomicInteger(0)).incrementAndGet();
-                            maxNodeRef.updateAndGet(max -> Math.max(max, Math.max(u, v)));
-                            if (u < v) edgeCountRef.incrementAndGet();
-                        }
-                    } catch (NumberFormatException e) {
-                        // Skip malformed lines
-                    }
+                if (tok.length < 2) continue;
+                int u = Integer.parseInt(tok[0]);
+                int v = Integer.parseInt(tok[1]);
+                if (u == v) continue;
+                int needed = Math.max(u, v) + 1;
+                if (needed > deg.length) {
+                    int newLen = deg.length;
+                    while (newLen < needed) newLen <<= 1;
+                    deg = Arrays.copyOf(deg, newLen);
                 }
-            });
-
-        return buildGraphFromData(allLines, maxNodeRef.get(), edgeCountRef.get(), degreeMap);
-    }
-
-    static GraphData buildGraphFromData(List<String> lines, int maxNode, long edgeCount,
-                                       ConcurrentHashMap<Integer, AtomicInteger> degreeMap) {
+                deg[u]++; deg[v]++;
+                if (u < v) mUndir++;
+                if (u > maxNode) maxNode = u;
+                if (v > maxNode) maxNode = v;
+            }
+        }
         final int n = maxNode + 1;
-
-        // Pre-allocate adjacency lists with known sizes
         @SuppressWarnings("unchecked")
         List<Integer>[] adj1 = (List<Integer>[]) new List<?>[n + 1];
-
-        // Initialize with appropriate capacities
-        IntStream.rangeClosed(1, n).parallel().forEach(i -> {
-            AtomicInteger degCounter = degreeMap.get(i - 1);
-            int expectedDegree = (degCounter != null) ? degCounter.get() : 0;
-            // Over-allocate by 25% to reduce resizing
-            int capacity = Math.max(4, (int)(expectedDegree * 1.25));
-            adj1[i] = Collections.synchronizedList(new ArrayList<>(capacity));
-        });
-
-        // Second pass: build adjacency lists in parallel
-        lines.parallelStream()
-            .filter(s -> !s.trim().isEmpty() && !s.startsWith("#"))
-            .forEach(s -> {
+        for (int i = 1; i <= n; i++) adj1[i] = new ArrayList<>(deg[i - 1]);
+        try (BufferedReader br = Files.newBufferedReader(edgesFile, StandardCharsets.UTF_8)) {
+            String s;
+            while ((s = br.readLine()) != null) {
+                s = s.trim();
+                if (s.isEmpty() || s.startsWith("#")) continue;
                 String[] tok = s.split("\\s+|,");
-                if (tok.length >= 2) {
-                    try {
-                        int u = Integer.parseInt(tok[0]);
-                        int v = Integer.parseInt(tok[1]);
-                        if (u != v) {
-                            adj1[u + 1].add(v + 1);
-                            adj1[v + 1].add(u + 1);
-                        }
-                    } catch (NumberFormatException e) {
-                        // Skip malformed lines
-                    }
-                }
-            });
-
+                if (tok.length < 2) continue;
+                int u = Integer.parseInt(tok[0]);
+                int v = Integer.parseInt(tok[1]);
+                if (u == v) continue;
+                adj1[u + 1].add(v + 1);
+                adj1[v + 1].add(u + 1);
+            }
+        }
         GraphData G = new GraphData();
-        G.n = n;
-        G.m = edgeCount;
-        G.adj1Based = adj1;
-        G.labels = new int[n];
-        Arrays.fill(G.labels, -1);
+        G.n = n; G.m = mUndir; G.adj1Based = adj1;
+        G.labels = new int[n]; Arrays.fill(G.labels, -1);
         G.labelNames = new String[0];
         return G;
     }
 
-    // ---------- Optimized Helpers ----------
-    static double approxDiameterOptimized(int[] nodes, List<Integer>[] adj1, boolean[] inC) {
+    // Helpers
+    static double approxDiameter(int[] nodes, List<Integer>[] adj1, boolean[] inC) {
         if (nodes.length <= 1) return 0.0;
-
-        // For larger components, sample a few starting points and take the best
-        int numSamples = Math.min(3, nodes.length);
-        double maxDiam = 0.0;
-
-        for (int i = 0; i < numSamples; i++) {
-            int start = nodes[i * nodes.length / numSamples];
-            BFSResult a = bfsFarthest(start, adj1, inC);
-            BFSResult b = bfsFarthest(a.node, adj1, inC);
-            maxDiam = Math.max(maxDiam, b.dist);
-        }
-
-        return maxDiam;
+        int start = nodes[0];
+        BFSResult a = bfsFarthest(start, adj1, inC);
+        BFSResult b = bfsFarthest(a.node, adj1, inC);
+        return (double) b.dist;
     }
 
     static BFSResult bfsFarthest(int src, List<Integer>[] adj1, boolean[] inC) {
         int nTot = inC.length;
         int[] dist = new int[nTot];
         Arrays.fill(dist, -1);
-        ArrayDeque<Integer> q = new ArrayDeque<>(1024); // Pre-size queue
+        ArrayDeque<Integer> q = new ArrayDeque<>();
         q.add(src);
         dist[src] = 0;
         int bestNode = src, bestDist = 0;
-
         while (!q.isEmpty()) {
             int u = q.removeFirst();
             int du = dist[u];
             if (du > bestDist) { bestDist = du; bestNode = u; }
-
-            List<Integer> neighbors = adj1[u + 1];
-            for (int i = 0, size = neighbors.size(); i < size; i++) {
-                int v1 = neighbors.get(i);
+            for (int v1 : adj1[u + 1]) {
                 int v = v1 - 1;
-                if (!inC[v] || dist[v] >= 0) continue;
+                if (!inC[v]) continue;
+                if (dist[v] >= 0) continue;
                 dist[v] = du + 1;
                 q.add(v);
             }
@@ -421,7 +280,7 @@ public class LRMCseedsReddit_streamsafe {
     }
 
     static String intArrayToJson(int[] arr) {
-        StringBuilder sb = new StringBuilder(arr.length * 6); // Pre-size
+        StringBuilder sb = new StringBuilder();
         sb.append('[');
         for (int i = 0; i < arr.length; i++) {
             if (i > 0) sb.append(',');
