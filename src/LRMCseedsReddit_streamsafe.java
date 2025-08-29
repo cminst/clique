@@ -102,7 +102,7 @@ public class LRMCseedsReddit_streamsafe {
                     ? approxDiameter(nodes, G.adj1Based, inC)
                     : 1.0; // simple fallback for lambda2
 
-            final double sc = k * (dbar - alpha * Math.sqrt(Q + epsilon));
+            final double sc = k / (Q + epsilon);
             final int compId = getSnapshotComponentId(s, nodes);
             final int sid = idx++;
 
