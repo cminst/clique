@@ -33,3 +33,7 @@ src/tmp_table1/
 *.content
 
 src/UsacoProbs/data/*
+
+src/reddit_edges.txt
+
+out/*

@@ -5,7 +5,7 @@ import java.util.*;
 
 class LRMCmkpeeling {
 
-    // ---------------- experiment constants from the paper ----------------
+    // experiment constants from the paper
     // n in [20k, 1M], 10 planted clusters, p_intra in [0.005, 0.02], q in [1e-4, 1e-3]
     static final int NUM_CLUSTERS = 10;
     static final double CLUSTER_FRACTION = 0.20; // 20% of nodes participate in planted clusters
@@ -111,7 +111,7 @@ class LRMCmkpeeling {
         }
     }
 
-    // ------------ run LRMC external main ------------
+    // run LRMC external main
     private static double runLRMC(double epsilon, Path inputFile) throws IOException, InterruptedException {
         String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
         String classpath = System.getProperty("java.class.path");
@@ -146,7 +146,7 @@ class LRMCmkpeeling {
         return Double.parseDouble(msStr);
     }
 
-    // ------------ Charikar's greedy peeling (densest subgraph), end-to-end runtime ------------
+    // Charikar's greedy peeling (densest subgraph), end-to-end runtime
     // Includes file parsing and adjacency build for parity with LRMC's end-to-end measurement.
     private static double runCharikarPeeling(Path edgeListFile) throws IOException {
         long t0 = System.nanoTime();
@@ -273,7 +273,7 @@ class LRMCmkpeeling {
         prev[v] = -1; next[v] = -1;
     }
 
-    // ------------ clustered generator (expected O(m)) ------------
+    // clustered generator (expected O(m))
     static long generateClusteredGraphToFile(
             int n, int k, double frac, double pIntra, double pInter, Random rng, Path outFile) throws IOException {
 
@@ -364,7 +364,7 @@ class LRMCmkpeeling {
         return written;
     }
 
-    // ---------------- helpers ----------------
+    // helpers
     static int[] logSpaced(int lo, int hi, int k) {
         double a = Math.log(lo), b = Math.log(hi);
         int[] out = new int[k];

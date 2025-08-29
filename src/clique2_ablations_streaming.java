@@ -14,7 +14,7 @@ import java.util.stream.IntStream;
  */
 public class clique2_ablations_streaming {
 
-    // ---------------------------- API ----------------------------
+    // API
 
     public static List<SnapshotDTO> runLaplacianRMC(List<Integer>[] adj1Based) {
         ArrayList<SnapshotDTO> out = new ArrayList<>();
@@ -63,6 +63,7 @@ public class clique2_ablations_streaming {
         int[] tmpCounts = new int[32];
 
         for (int step = n - 1; step >= 0; step--) {
+            System.out.println("# Step " + step);
             int u = order[step];
             added[u] = true;
             dsu.makeSingleton(u, deg[u]); // boundary starts at full degree; sumDegIn=0
@@ -113,8 +114,7 @@ public class clique2_ablations_streaming {
         System.out.printf("# Reconstruction completed in %.2f seconds%n", reconTime / 1000.0);
     }
 
-    // ------------------------- Optimized Degeneracy Order -------------------------
-
+    // Optimized Degeneracy Order
     static int[] degeneracyOrderOptimized(int[][] nbrs, int[] deg0) {
         final int n = nbrs.length;
         int maxDeg = Arrays.stream(deg0).parallel().max().orElse(0);
@@ -182,8 +182,7 @@ public class clique2_ablations_streaming {
         return order;
     }
 
-    // --------------------------- Optimized DSU & Stats ---------------------------
-
+    // Optimized DSU & Stats
     static final class DSU {
         final int n;
         final int[] parent;
@@ -296,7 +295,7 @@ public class clique2_ablations_streaming {
         }
     }
 
-    // ------------------------- Snapshot DTO -------------------------
+    // Snapshot DTO
 
     public static final class SnapshotDTO {
         public final int[] nodes;   // 0-based ids in the original graph

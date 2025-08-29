@@ -44,7 +44,7 @@ public class clique2_mk {
 
     /** Optimized O(Mk) algorithm using reverse-peeling orientation + pred_sum pushes. */
     static Result runLaplacianRMC(List<Integer>[] adj, double EPS) {
-        // -------- Phase 1: peeling (same as before) --------
+        // Phase 1: peeling (same as before)
         int[] deg0 = new int[n + 1];
         PriorityQueue<Pair> pq = new PriorityQueue<>();
         for (int i = 1; i <= n; i++) {
@@ -74,7 +74,7 @@ public class clique2_mk {
             idx[u] = t;
         }
 
-        // -------- Phase 1.5: orient edges by idx and sort successors --------
+        // Phase 1.5: orient edges by idx and sort successors
         @SuppressWarnings("unchecked")
         ArrayList<Integer>[] succ = new ArrayList[n + 1];
         @SuppressWarnings("unchecked")
@@ -101,7 +101,7 @@ public class clique2_mk {
             // pred[v] need not be sorted
         }
 
-        // -------- Phase 2: reverse reconstruction with O(k) per edge --------
+        // Phase 2: reverse reconstruction with O(k) per edge
         DSU dsu = new DSU(n); // tracks parent, size, and Q (double)
         int[] deg = new int[n + 1];          // current degree
         long[] predSum = new long[n + 1];    // sum of degrees of predecessors
@@ -174,7 +174,7 @@ public class clique2_mk {
         return out;
     }
 
-    // ---------- Small helper for successor-degree partial sums ----------
+    // Small helper for successor-degree partial sums
     static final class SumSucc {
         final ArrayList<Integer>[] succ;
         final int[] idx;
@@ -198,7 +198,7 @@ public class clique2_mk {
         }
     }
 
-    // ---------- Helpers ----------
+    // Helpers
 
     static class Result {
         double bestSL;

@@ -14,7 +14,7 @@ public class clique2_lct {
 
         long start = System.nanoTime();
 
-        // --- Adjacency List ---
+        // Adjacency List
         Map<Integer, List<Integer>> adj = new HashMap<>();
         for (int i = 1; i <= n; i++) adj.put(i, new ArrayList<>());
         for (int i = 0; i < m; i++) {
@@ -24,7 +24,7 @@ public class clique2_lct {
             adj.get(v).add(u);
         }
 
-        // --- Phase 1: Peeling (Unchanged, but using a more robust PQ method) ---
+        // Phase 1: Peeling (Unchanged, but using a more robust PQ method)
         int[] currentDegrees = new int[n + 1];
         boolean[] removed = new boolean[n + 1];
         PriorityQueue<Pair> pq = new PriorityQueue<>();
@@ -54,7 +54,7 @@ public class clique2_lct {
             }
         }
 
-        // --- Phase 2: Rebuilding with Link-Cut Tree ---
+        // Phase 2: Rebuilding with Link-Cut Tree
         double sMax = 0;
         int uStar = 0;
 
@@ -91,7 +91,7 @@ public class clique2_lct {
 
             // 3. Process each new edge (u, v)
             for (int v : readdedNeighbors) {
-                // --- A: Update for degree[v] increasing by 1 ---
+                // A: Update for degree[v] increasing by 1
                 long old_dv = lct.getDegree(v);
 
                 // Get sum of neighbor degrees for v BEFORE its degree changes
@@ -107,12 +107,12 @@ public class clique2_lct {
                 // Actually update v's degree in the LCT
                 lct.updatePoint(v, old_dv + 1);
 
-                // --- B: Add contribution of the new edge (u, v) ---
+                // B: Add contribution of the new edge (u, v)
                 long du = lct.getDegree(u);
                 long new_dv = lct.getDegree(v);
                 long edgeContribution = (du - new_dv) * (du - new_dv);
 
-                // --- C: Update topology ---
+                // C: Update topology
                 if (lct.findRoot(u) != lct.findRoot(v)) {
                     // It's a tree edge, merge components
                     int uRoot = dsu.find(u);
@@ -154,7 +154,7 @@ public class clique2_lct {
         System.out.printf("Runtime: %.3f ms%n", (end - start) / 1_000_000.0);
     }
 
-    // --- Helper Classes ---
+    // Helper Classes
 
     static class DSU {
         int[] parent;
@@ -214,7 +214,7 @@ class LinkCutTree {
         Node p = null, l = null, r = null; // Parent, left, right in splay tree
         boolean rev = false; // Lazy flag for path reversal
 
-        // --- Augmentation Data ---
+        // Augmentation Data
         long value; // The node's actual degree
         long subtreeValue; // Sum of values in the splay subtree (real children)
         long virtualValue; // Sum of subtreeValues of virtual children
@@ -228,7 +228,7 @@ class LinkCutTree {
         }
     }
 
-    // --- Core Splay Tree Operations ---
+    // Core Splay Tree Operations
     private boolean isRoot(Node x) {
         return x.p == null || (x.p.l != x && x.p.r != x);
     }
@@ -285,7 +285,7 @@ class LinkCutTree {
         push(x);
     }
 
-    // --- Core Link-Cut Tree Operations ---
+    // Core Link-Cut Tree Operations
 
     // Moves x to the root of its auxiliary splay tree and makes the path
     // from x to the root of the represented tree the preferred path.

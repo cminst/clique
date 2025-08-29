@@ -88,7 +88,7 @@ class LRMCablations2 {
         }
     }
 
-    // ---------- Accuracy from α-calibrated surrogate over all nodes ----------
+    // Accuracy from α-calibrated surrogate over all nodes
     static double labelAccuracyFromSnapshots(
             List<clique2_ablations.SnapshotDTO> snaps,
             GraphData G,
@@ -154,7 +154,7 @@ class LRMCablations2 {
         return correct / (double) n;
     }
 
-    // ---------- Majority label ----------
+    // Majority label
     static int majorityLabel(int[] nodes, int[] labels, int numClasses) {
         int[] cnt = new int[numClasses];
         for (int u : nodes) cnt[labels[u]]++;
@@ -168,7 +168,7 @@ class LRMCablations2 {
         return arg;
     }
 
-    // ---------- Approximate diameter by 2-sweep BFS on the induced subgraph ----------
+    // Approximate diameter by 2-sweep BFS on the induced subgraph
     static int approxDiameter(int[] nodes, List<Integer>[] adj1, boolean[] inC) {
         if (nodes.length <= 1) return 0;
 
@@ -204,7 +204,7 @@ class LRMCablations2 {
         return new BFSResult(bestNode, bestDist);
     }
 
-    // ---------- Approximate λ2(L_C) via orthogonalized power iteration ----------
+    // Approximate λ2(L_C) via orthogonalized power iteration
     static double approxLambda2(int[] nodes, List<Integer>[] adj1, boolean[] inC) {
         final int k = nodes.length;
         if (k <= 1) return 0.0;
@@ -294,7 +294,7 @@ class LRMCablations2 {
         for (int i = 0; i < v.length; i++) v[i] *= inv;
     }
 
-    // ---------- Cora loader ----------
+    // Cora loader
     static GraphData loadCora(Path content, Path cites) throws IOException {
         Map<String, Integer> id2idx = new LinkedHashMap<>();
         Map<String, Integer> lbl2idx = new LinkedHashMap<>();
@@ -495,7 +495,7 @@ class LRMCablations2 {
         }
     }
 
-    // ---------- Data holders ----------
+    // Data holders
     static final class GraphData {
         int n;
         long m;

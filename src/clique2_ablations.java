@@ -47,7 +47,7 @@ public class clique2_ablations {
     public static List<SnapshotDTO> runLaplacianRMC(List<Integer>[] adj) {
         final int n = adj.length - 1;        // infer n from 1-based adjacency
 
-        // -------- Phase 1: peeling (same as before) --------
+        // Phase 1: peeling (same as before)
         int[] deg0 = new int[n + 1];
         PriorityQueue<Pair> pq = new PriorityQueue<>();
         for (int i = 1; i <= n; i++) {
@@ -77,7 +77,7 @@ public class clique2_ablations {
             idx[u] = t;
         }
 
-        // -------- Phase 1.5: orient edges by idx and sort successors --------
+        // Phase 1.5: orient edges by idx and sort successors
         @SuppressWarnings("unchecked")
         ArrayList<Integer>[] succ = new ArrayList[n + 1];
         @SuppressWarnings("unchecked")
@@ -104,7 +104,7 @@ public class clique2_ablations {
             // pred[v] need not be sorted
         }
 
-        // -------- Phase 2: reverse reconstruction with O(k) per edge --------
+        // Phase 2: reverse reconstruction with O(k) per edge
         DSU dsu = new DSU(n); // tracks parent, size, and Q (double)
         int[] deg = new int[n + 1];          // current degree
         long[] predSum = new long[n + 1];    // sum of degrees of predecessors
@@ -186,7 +186,7 @@ public class clique2_ablations {
         return recon;
     }
 
-    // ---------- Small helper for successor-degree partial sums ----------
+    // Small helper for successor-degree partial sums
     static final class SumSucc {
         final ArrayList<Integer>[] succ;
         final int[] idx;
@@ -210,7 +210,7 @@ public class clique2_ablations {
         }
     }
 
-    // ---------- Helpers ----------
+    // Helpers
 
     static class Result {
         double bestSL;

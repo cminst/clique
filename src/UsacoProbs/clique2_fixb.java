@@ -192,7 +192,7 @@ public class clique2_fixb {
         return out;
     }
 
-    // ---------- Helpers ----------
+    // Helpers
 
     static class Result {
         double bestSL;
