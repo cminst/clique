@@ -50,7 +50,7 @@ public class LRMCseedsReddit_streamsafe {
         System.out.println("# Done. wrote " + outSeeds.toAbsolutePath());
     }
 
-    // ------------- Streaming peak tracker -------------
+    // Streaming peak tracker
     static final class PeakTracker implements Consumer<clique2_ablations_streaming.SnapshotDTO> {
         final GraphData G;
         final double epsilon;
@@ -160,7 +160,7 @@ public class LRMCseedsReddit_streamsafe {
         }
     }
 
-    // ---------- Load Reddit from edge list (preallocated) ----------
+    // Load Reddit from edge list (preallocated)
     static GraphData loadRedditEdgeList(Path edgesFile) throws IOException {
         int[] deg = new int[1 << 16];
         int maxNode = -1;
@@ -212,7 +212,7 @@ public class LRMCseedsReddit_streamsafe {
         return G;
     }
 
-    // ---------- Helpers ----------
+    // Helpers
     static double approxDiameter(int[] nodes, List<Integer>[] adj1, boolean[] inC) {
         if (nodes.length <= 1) return 0.0;
         int start = nodes[0];
