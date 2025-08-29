@@ -245,6 +245,50 @@ public class Table1Synthetic {
         return evalResult;
     }
 
+    static EvaluationResult runQuasiClique(SyntheticGraph g) {
+        final int minSize = 10; // keep consistent with runDensestSingle
+        long start = System.nanoTime();
+
+        Set<Integer> remaining = new HashSet<>();
+        for (int i = 1; i <= g.n; i++) remaining.add(i);
+
+        Set<Integer> bestSubgraph = new HashSet<>();
+        double bestDensity = -1.0;
+
+        while (remaining.size() > minSize) {
+            int totalDeg = 0;
+            int minDegNode = -1;
+            int minDeg = Integer.MAX_VALUE;
+
+            // compute internal degrees, totalDeg, and find min-degree node
+            for (int u : remaining) {
+                int deg = 0;
+                for (int v : g.adj[u]) if (remaining.contains(v)) deg++;
+                totalDeg += deg;
+                if (deg < minDeg) { minDeg = deg; minDegNode = u; }
+            }
+
+            int k = remaining.size();
+            int edges = totalDeg / 2;
+            int maxEdges = k * (k - 1) / 2;
+            double density = (maxEdges == 0) ? 0.0 : (double) edges / maxEdges;
+
+            // track best by edge density; tie-break by size
+            if (density > bestDensity || (Math.abs(density - bestDensity) < 1e-12 && k > bestSubgraph.size())) {
+                bestDensity = density;
+                bestSubgraph = new HashSet<>(remaining);
+            }
+
+            if (minDegNode == -1) break;  // shouldn't happen, but safe
+            remaining.remove(minDegNode);
+        }
+
+        long end = System.nanoTime();
+        EvaluationResult eval = new EvaluationResult(bestSubgraph, g.plantedCluster, (end - start) / 1_000_000);
+        eval.computeStats(g.adj);
+        return eval;
+    }
+
     // Sweep parameters and write CSV like the reference file
     public static void main(String[] args) {
         double eps = 10; // Default epsilon value
@@ -276,9 +320,9 @@ public class Table1Synthetic {
         final int nTotal = 2500;
 
         // Parameter sweep
-        int[] clusterSizes = {100, 150, 200};
-        double[] pIns = {0.6, 0.7, 0.8, 0.9};
-        double[] pOuts = {0.25, 0.35, 0.45};
+        int[] clusterSizes = {100, 150, 200}; //{25,50,75};
+        double[] pIns = {0.6, 0.7, 0.8, 0.9}; //{0.8,0.9};
+        double[] pOuts = {0.25, 0.35, 0.45};  //{0.01, 0.1, 0.15};
 
         String outPath = String.format(
                 java.util.Locale.US,
@@ -295,6 +339,7 @@ public class Table1Synthetic {
                         AggregatedResult lrmcAgg = new AggregatedResult();
                         AggregatedResult kcoreAgg = new AggregatedResult();
                         AggregatedResult densestAgg = new AggregatedResult();
+                        AggregatedResult qcAgg = new AggregatedResult();
 
                         for (int run = 0; run < numRuns; run++) {
                             int seed = 42 + run;
@@ -309,9 +354,11 @@ public class Table1Synthetic {
                             if (!lrmcOnly) {
                                 EvaluationResult kcore = runBestKCore(g);
                                 EvaluationResult densest = runDensestSingle(g);
+                                EvaluationResult qc = runQuasiClique(g);
 
                                 kcoreAgg.addResult(kcore);
                                 densestAgg.addResult(densest);
+                                qcAgg.addResult(qc);
                             }
                         }
 
@@ -322,9 +369,11 @@ public class Table1Synthetic {
                         if (!lrmcOnly) {
                             kcoreAgg.average();
                             densestAgg.average();
+                            qcAgg.average();
 
                             writeAggregatedRow(w, "k-core", k, pIn, pOut, kcoreAgg);
                             writeAggregatedRow(w, "Densest", k, pIn, pOut, densestAgg);
+                            writeAggregatedRow(w, "QuasiClique", k, pIn, pOut, qcAgg);
                         }
 
                         System.out.printf("Finished instance: k=%d, pIn=%.1f, pOut=%.2f (averaged over %d runs)%n", k, pIn, pOut, numRuns);
