@@ -43,23 +43,11 @@ public class LRMCseedsReddit_streamsafe {
 
         PeakTracker tracker = new PeakTracker(G, eps, alphaKind);
 
-        boolean usedStreaming = false;
-        try {
-            Method meth = clique2_ablations_streaming.class.getMethod(
-                    "runLaplacianRMCStreaming",
-                    List[].class, java.util.function.Consumer.class);
-            System.out.println("# Found streaming entry point. Running streaming reconstruction...");
-            meth.invoke(null, (Object) G.adj1Based, (java.util.function.Consumer<clique2_ablations_streaming.SnapshotDTO>) tracker);
-            usedStreaming = true;
-        } catch (NoSuchMethodException nsme) {
-            System.out.println("# Streaming entry point not found; falling back to runLaplacianRMC (may be memory heavy).");
-            List<clique2_ablations_streaming.SnapshotDTO> snaps = clique2_ablations_streaming.runLaplacianRMC(G.adj1Based);
-            for (clique2_ablations_streaming.SnapshotDTO s : snaps) tracker.accept(s);
-        }
+        System.out.println("# Found streaming entry point. Running streaming reconstruction...");
+        clique2_ablations_streaming.runLaplacianRMCStreaming(G.adj1Based, tracker);
 
         tracker.writeJson(outSeeds);
-        System.out.println("# Done. wrote " + outSeeds.toAbsolutePath()
-                + (usedStreaming ? " (streaming)" : " (materialized)"));
+        System.out.println("# Done. wrote " + outSeeds.toAbsolutePath());
     }
 
     // ------------- Streaming peak tracker -------------
