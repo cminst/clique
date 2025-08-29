@@ -5,7 +5,7 @@ import java.util.*;
 
 public class LRMCablations {
 
-    // ---------------- existing runtime experiment constants (kept intact) ----------------
+    // Runtime Experiment Constants
     static final int NUM_CLUSTERS = 10;
     static final double CLUSTER_FRACTION = 0.20;
     static final double[] PINTRA_SERIES = {0.010};
@@ -20,7 +20,7 @@ public class LRMCablations {
     static final boolean PASS_EPSILON = true;
     static final long SEED = 123456789L;
 
-    // ---------------- new: Cora ablations + calibration settings ----------------
+    // Cora Ablations + Calibration Settings
     static final double[] EPS_SWEEP = {1e-8, 1e-6, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4, 20000, 1e5, 1e6, 1e7, 1e8, 1e9};
     static final String[] ALPHAS = {"diam", "invsqrt_lambda2"};
     static final int TOP_K_SEEDS = 100;      // keep fixed across runs for clean comparisons
@@ -313,7 +313,7 @@ public class LRMCablations {
         return f1sum / C;
     }
 
-    // ---------------- Nearest-seed evaluation and selection helpers ----------------
+    // Nearest-Seed Evaluation and Selection Helpers
     static EvalResult evaluateNearestSeed(Cora cora, List<RankedSeed> seeds, int maxHops) {
         int n = cora.n;
         int[] pred = new int[n];
@@ -406,7 +406,7 @@ public class LRMCablations {
         return cnt / (double) n;
     }
 
-    // ---------------- Local subgraph utilities ----------------
+    // Local Subgraph Utilities
     static LocalSubgraph buildLocal(List<Integer>[] globalAdj, int[] nodes) {
         int n = nodes.length;
         int[] map = new int[globalAdj.length];
@@ -581,7 +581,7 @@ public class LRMCablations {
     }
 
 
-    // ---------------- Data containers ----------------
+    // Data Containers
     public static final class Reconstruction {
         final List<Snapshot> snaps = new ArrayList<>();
     }
@@ -750,7 +750,7 @@ public class LRMCablations {
         }
     }
 
-    // ------------ run clique2 ------------
+    //  Run L-RMC Algorithm
     private static double runClique2(double epsilon, Path inputFile) throws IOException, InterruptedException {
         String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
         String classpath = System.getProperty("java.class.path");
@@ -773,7 +773,7 @@ public class LRMCablations {
         return Double.parseDouble(msStr);
     }
 
-    // ------------ clustered generator (unchanged) ------------
+    // Clustered Generator (expected O(m))
     static long generateClusteredGraphToFile(
             int n, int k, double frac, double pIntra, double pInter, Random rng, Path outFile) throws IOException {
         int clusterTotal = (int) Math.round(frac * n);
@@ -809,7 +809,7 @@ public class LRMCablations {
         return m;
     }
 
-    // ------------ degeneracy from file (unchanged) ------------
+    // Compute Degeneracy
     static int computeDegeneracyFromFile(int n, long m, Path edgeListFile) throws IOException {
         int[] deg = new int[n];
         try (BufferedReader br = Files.newBufferedReader(edgeListFile, StandardCharsets.UTF_8)) {
@@ -844,7 +844,7 @@ public class LRMCablations {
         return kDeg;
     }
 
-    // ------------ random graph helpers (unchanged) ------------
+    // Graph Helpers
     static long triPairsToWriter(int[] set, double p, BufferedWriter w, Random rng) throws IOException {
         int s = set.length; if (s < 2 || p <= 0) return 0L; final double logq = Math.log(1.0 - p);
         long written = 0; int row = 0, off = -1; while (row < s - 1) {
@@ -861,7 +861,7 @@ public class LRMCablations {
             w.write(A[i] + " " + B[j]); w.newLine(); written++; } return written;
     }
 
-    // ---------------- helpers (unchanged) ----------------
+    // Helpers
     static int[] logSpaced(int lo, int hi, int k) {
         double a = Math.log(lo), b = Math.log(hi); int[] out = new int[k];
         for (int i = 0; i < k; i++) { double t = i / (double) (k - 1); out[i] = (int) Math.round(Math.exp(a + t * (b - a))); out[i] = Math.max(lo, Math.min(hi, (out[i] + 500) / 1000 * 1000)); }

@@ -61,7 +61,7 @@ public class clique2_nosquared {
             deg[p.node] = 0;
         }
 
-        // --- Phase 2: reverse reconstruction with batched Laplacian update ---
+        // Phase 2: reverse reconstruction with batched Laplacian update
 
         DSU dsu = new DSU(n);
         boolean[] inGraph = new boolean[n + 1];
@@ -152,7 +152,7 @@ public class clique2_nosquared {
         return out;
     }
 
-    // ---------- Helpers ----------
+    // Helpers
 
     static class Result {
         double bestSL;

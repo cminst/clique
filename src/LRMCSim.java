@@ -101,7 +101,7 @@ public class LRMCSim {
         }
     }
 
-    // ------------ run clique2 ------------
+    // Run L-RMC Algorithm
     private static double runClique2(double epsilon, Path inputFile) throws IOException, InterruptedException {
         String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
         String classpath = System.getProperty("java.class.path");
@@ -136,7 +136,7 @@ public class LRMCSim {
         return Double.parseDouble(msStr);
     }
 
-    // ------------ clustered generator (expected O(m)) ------------
+    // Clustered Generator (expected O(m))
     static long generateClusteredGraphToFile(
             int n, int k, double frac, double pIntra, double pInter, Random rng, Path outFile) throws IOException {
 
@@ -223,7 +223,7 @@ public class LRMCSim {
         return written;
     }
 
-    // ---------------- helpers ----------------
+    // Helpers
     static int[] logSpaced(int lo, int hi, int k) {
         double a = Math.log(lo), b = Math.log(hi);
         int[] out = new int[k];

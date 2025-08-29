@@ -16,8 +16,7 @@ public class clique_test {
         return new Result();
     }
 
-    // ---------- Helpers ----------
-
+    // Helpers
     static class Result {
         double bestSL;
         int bestRoot;
