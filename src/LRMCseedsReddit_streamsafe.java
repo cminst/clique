@@ -46,9 +46,6 @@ public class LRMCseedsReddit_streamsafe {
         System.out.println("# Found streaming entry point. Running streaming reconstruction...");
         clique2_ablations_streaming.runLaplacianRMCStreaming(G.adj1Based, tracker);
 
-        long algoTime = System.currentTimeMillis() - startTime;
-        System.out.printf(Locale.US, "# Algorithm completed in %.2f seconds%n", algoTime / 1000.0);
-
         tracker.writeJson(outSeeds);
         System.out.println("# Done. wrote " + outSeeds.toAbsolutePath());
     }
@@ -215,6 +212,7 @@ public class LRMCseedsReddit_streamsafe {
         return G;
     }
 
+    // Helpers
     static double approxDiameter(int[] nodes, List<Integer>[] adj1, boolean[] inC) {
         if (nodes.length <= 1) return 0.0;
         int start = nodes[0];
