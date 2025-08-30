@@ -44,17 +44,14 @@ public class LRMCseedsReddit_streamsafe {
         PeakTracker tracker = new PeakTracker(G, eps, alphaKind);
 
         System.out.println("# Found streaming entry point. Running streaming reconstruction...");
-        clique2_ablations_streaming.runLaplacianRMCStreaming(G.adj1Based, tracker);
-
-        long algoTime = System.currentTimeMillis() - startTime;
-        System.out.printf(Locale.US, "# Algorithm completed in %.2f seconds%n", algoTime / 1000.0);
+        clique2_ablations_streamsafe.runLaplacianRMCStreaming(G.adj1Based, tracker);
 
         tracker.writeJson(outSeeds);
         System.out.println("# Done. wrote " + outSeeds.toAbsolutePath());
     }
 
     // Streaming peak tracker
-    static final class PeakTracker implements Consumer<clique2_ablations_streaming.SnapshotDTO> {
+    static final class PeakTracker implements Consumer<clique2_ablations_streamsafe.SnapshotDTO> {
         final GraphData G;
         final double epsilon;
         final AlphaKind alphaKind;
@@ -81,7 +78,7 @@ public class LRMCseedsReddit_streamsafe {
         }
 
         @Override
-        public void accept(clique2_ablations_streaming.SnapshotDTO s) {
+        public void accept(clique2_ablations_streamsafe.SnapshotDTO s) {
             final int[] nodes = s.nodes;
             final int k = nodes.length;
             if (k == 0) return;
@@ -215,6 +212,77 @@ public class LRMCseedsReddit_streamsafe {
         return G;
     }
 
+    static GraphData loadCora(Path content, Path cites) throws IOException {
+        Map<String, Integer> id2idx = new LinkedHashMap<>();
+        Map<String, Integer> lbl2idx = new LinkedHashMap<>();
+        List<String> lblNames = new ArrayList<>();
+        List<Integer> labelsList = new ArrayList<>();
+
+        // Pass 1: content defines node universe and labels
+        try (BufferedReader br = Files.newBufferedReader(content, StandardCharsets.UTF_8)) {
+            String s;
+            while ((s = br.readLine()) != null) {
+                s = s.trim();
+                if (s.isEmpty()) continue;
+                String[] tok = s.split("\\s+");
+                String id = tok[0];
+                String lab = tok[tok.length - 1];
+                int u = id2idx.computeIfAbsent(id, _k -> id2idx.size());
+                int c = lbl2idx.computeIfAbsent(lab, _k -> {
+                    lblNames.add(lab);
+                    return lblNames.size() - 1;
+                });
+                // Extend labels list to position u if needed
+                while (labelsList.size() <= u) labelsList.add(0);
+                labelsList.set(u, c);
+            }
+        }
+        int n = id2idx.size();
+        int[] labels = new int[n];
+        for (int i = 0; i < n; i++) labels[i] = labelsList.get(i);
+
+        // Temp adjacency as sets to dedup
+        @SuppressWarnings("unchecked")
+        HashSet<Integer>[] adjSet1 = new HashSet[n + 1];
+        for (int i = 1; i <= n; i++) adjSet1[i] = new HashSet<>();
+
+        // Pass 2: cites edges
+        long mUndir = 0;
+        try (BufferedReader br = Files.newBufferedReader(cites, StandardCharsets.UTF_8)) {
+            String s;
+            while ((s = br.readLine()) != null) {
+                s = s.trim();
+                if (s.isEmpty() || s.startsWith("#")) continue;
+                String[] tok = s.split("\\s+|,");
+                if (tok.length < 2) continue;
+                Integer ui = id2idx.get(tok[0]);
+                Integer vi = id2idx.get(tok[1]);
+                if (ui == null || vi == null) continue; // skip unknown ids
+                int a = ui + 1, b = vi + 1;             // to 1-based
+                if (a == b) continue;
+                if (adjSet1[a].add(b)) {
+                    adjSet1[b].add(a);
+                    mUndir++;
+                }
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Integer>[] adj1 = new ArrayList[n + 1];
+        for (int i = 1; i <= n; i++) {
+            adj1[i] = new ArrayList<>(adjSet1[i]);
+        }
+
+        GraphData G = new GraphData();
+        G.n = n;
+        G.m = mUndir;
+        G.adj1Based = adj1;
+        G.labels = labels;
+        G.labelNames = lblNames.toArray(new String[0]);
+        return G;
+    }
+
+    // Helpers
     static double approxDiameter(int[] nodes, List<Integer>[] adj1, boolean[] inC) {
         if (nodes.length <= 1) return 0.0;
         int start = nodes[0];
