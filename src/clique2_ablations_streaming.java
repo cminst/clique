@@ -1,4 +1,5 @@
 import java.util.*;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
 /**
@@ -130,9 +131,8 @@ public class clique2_ablations_streaming {
         }
     }
 
-    // ------------------------- Degeneracy Order -------------------------
+    // Degeneracy Order
 
-    // Stable min-degree removal via lazy PQ (ties by node id). O(E log N), good for small graphs.
     static int[] degeneracyOrderStable(int[][] nbrs, int[] deg0) {
         final int n = nbrs.length;
         int[] deg = Arrays.copyOf(deg0, n);
@@ -209,8 +209,7 @@ public class clique2_ablations_streaming {
         return order;
     }
 
-    // --------------------------- DSU & Stats ---------------------------
-
+    // Optimized DSU & Stats
     static final class DSU {
         final int n;
         final int[] parent;
