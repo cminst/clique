@@ -1,19 +1,28 @@
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.stream.IntStream;
 
 /**
- * clique2_ablations (streaming-capable, optimized)
+ * clique2_ablations (EXACT-Q, streaming-capable, fast)
  *
- * Optimizations:
- * - Parallel degeneracy computation where safe
- * - Better memory allocation strategies
- * - Optimized data structures
- * - Reduced object allocation in hot paths
+ * Entry points:
+ *  - runLaplacianRMC(List<Integer>[] adj1Based): collects snapshots (OK for small graphs)
+ *  - runLaplacianRMCStreaming(List<Integer>[] adj1Based, Consumer<SnapshotDTO> sink): streams snapshots
+ *
+ * Exact Q for ALL graph sizes:
+ *   For a component C (induced subgraph), with full-graph degrees d_i:
+ *     Q(C) = d^T L_C d = sum_i [deg_C(i) * d_i^2] - 2 * sum_{(i,j) in E_C, i<j} d_i d_j
+ *
+ * We maintain these per-component stats incrementally in DSU during reverse reconstruction:
+ *   - sumDegIn2  = 2 * |E_C|
+ *   - sumD2degC  = Σ_i deg_C(i) * d_i^2
+ *   - sumEprod   = Σ_{(i,j)∈E_C, i<j} d_i * d_j
+ * Then  Q = sumD2degC - 2 * sumEprod  (exact).
+ *
+ * Cost per step = O(deg(u)) + near-constant DSU unions. No Java streams or giant arrays.
  */
 public class clique2_ablations_streaming {
 
-    // API
+    // ---------------------------- API ----------------------------
 
     public static List<SnapshotDTO> runLaplacianRMC(List<Integer>[] adj1Based) {
         ArrayList<SnapshotDTO> out = new ArrayList<>();
@@ -23,153 +32,171 @@ public class clique2_ablations_streaming {
 
     public static void runLaplacianRMCStreaming(List<Integer>[] adj1Based,
                                                 Consumer<SnapshotDTO> sink) {
-        final int n = adj1Based.length - 1; // 1-based
-        System.out.printf("# Building 0-based adjacency for n=%d nodes...%n", n);
-
-        // Build 0-based adjacency with optimized allocation
+        final int n = adj1Based.length - 1; // 1-based adjacency
+        // Build 0-based adjacency + full degrees
         int[][] nbrs = new int[n][];
-        int[] deg = new int[n];
-
-        // Parallel conversion from 1-based to 0-based
-        IntStream.range(0, n).parallel().forEach(u0 -> {
-            int u1 = u0 + 1;
+        int[] degFull = new int[n];
+        for (int u1 = 1; u1 <= n; u1++) {
             List<Integer> lst = adj1Based[u1];
             int m = lst.size();
             int[] arr = new int[m];
-            for (int i = 0; i < m; i++) {
-                arr[i] = lst.get(i) - 1;
-            }
-            nbrs[u0] = arr;
-            deg[u0] = m;
-        });
+            for (int i = 0; i < m; i++) arr[i] = lst.get(i) - 1;
+            nbrs[u1 - 1] = arr;
+            degFull[u1 - 1] = m;
+        }
 
-        System.out.println("# Computing degeneracy order...");
-        long startTime = System.currentTimeMillis();
+        // Peeling order: stable PQ for small graphs, bucket for large graphs
+        int[] order = (n <= 100_000) ? degeneracyOrderStable(nbrs, degFull)
+                                     : degeneracyOrderBucket(nbrs, degFull);
 
-        // Peeling order (optimized degeneracy computation)
-        int[] order = degeneracyOrderOptimized(nbrs, deg);
-
-        long degTime = System.currentTimeMillis() - startTime;
-        System.out.printf("# Degeneracy order computed in %.2f seconds%n", degTime / 1000.0);
-
-        System.out.println("# Starting reconstruction phase...");
-        startTime = System.currentTimeMillis();
-
-        // Reconstruction with optimized DSU
-        DSU dsu = new DSU(n);
+        DSU dsu = new DSU(n, degFull);
         boolean[] added = new boolean[n];
-        int[] tmpRoots = new int[32]; // Larger initial size
-        int[] tmpCounts = new int[32];
+
+        // temp aggregators for neighbor components
+        int[] tmpRoots = new int[8];
+        int[] tmpCounts = new int[8];
+        long[] tmpSumD  = new long[8];   // Σ d_v over neighbors in that component
+        long[] tmpSumD2 = new long[8];   // Σ d_v^2 over neighbors in that component
 
         for (int step = n - 1; step >= 0; step--) {
-            System.out.println("# Step " + step);
-            int u = order[step];
+            final int u = order[step];
+            final int du = degFull[u];
             added[u] = true;
-            dsu.makeSingleton(u, deg[u]); // boundary starts at full degree; sumDegIn=0
+            dsu.makeSingleton(u);
 
-            // Count u's neighbors by component root (among already-added nodes)
             int unique = 0;
-            int[] Nu = nbrs[u];
-            for (int v : Nu) {
+            int liveNbrs = 0;
+            long totalSumD = 0L;
+            long totalSumD2 = 0L;
+
+            // Scan neighbors to aggregate per-component counts/sums
+            for (int v : nbrs[u]) {
                 if (!added[v]) continue;
+                liveNbrs++;
                 int r = dsu.find(v);
-                // Optimized linear search with early termination
                 int idx = -1;
-                for (int i = 0; i < unique; i++) {
-                    if (tmpRoots[i] == r) { idx = i; break; }
-                }
-                if (idx >= 0) {
-                    tmpCounts[idx] += 1;
-                } else {
+                for (int i = 0; i < unique; i++) if (tmpRoots[i] == r) { idx = i; break; }
+                if (idx < 0) {
                     if (unique == tmpRoots.length) {
-                        tmpRoots = Arrays.copyOf(tmpRoots, unique * 2);
-                        tmpCounts = Arrays.copyOf(tmpCounts, unique * 2);
+                        int newLen = unique << 1;
+                        tmpRoots = Arrays.copyOf(tmpRoots, newLen);
+                        tmpCounts = Arrays.copyOf(tmpCounts, newLen);
+                        tmpSumD = Arrays.copyOf(tmpSumD, newLen);
+                        tmpSumD2 = Arrays.copyOf(tmpSumD2, newLen);
                     }
-                    tmpRoots[unique] = r;
-                    tmpCounts[unique] = 1;
-                    unique++;
+                    idx = unique++;
+                    tmpRoots[idx] = r;
+                    tmpCounts[idx] = 1;
+                    tmpSumD[idx] = degFull[v];
+                    tmpSumD2[idx] = (long) degFull[v] * (long) degFull[v];
+                } else {
+                    tmpCounts[idx] += 1;
+                    tmpSumD[idx] += degFull[v];
+                    tmpSumD2[idx] += (long) degFull[v] * (long) degFull[v];
                 }
+                totalSumD += degFull[v];
+                totalSumD2 += (long) degFull[v] * (long) degFull[v];
             }
 
-            // Merge u's singleton with each neighbor component
+            // Merge u's singleton with each neighbor component (via DSU)
             int ru = dsu.find(u);
             for (int i = 0; i < unique; i++) {
                 int rv = tmpRoots[i];
                 if (ru == rv) continue;
-                int t = tmpCounts[i];
-                ru = dsu.unionWithEdgeCount(ru, rv, t);
+                ru = dsu.union(ru, rv);
             }
 
+            // Update per-component stats for edges formed by u
+            // Internal edges added this step: t = liveNbrs, contributing:
+            //   sumDegIn2 += 2 * t
+            //   sumEprod  += du * Σ d_v  (v = added neighbors)
+            //   sumD2degC += t * du^2 + Σ d_v^2
+            long delta2 = 2L * liveNbrs;
+            double deltaEprod = (double) du * (double) totalSumD;
+            double deltaD2degC = (double) liveNbrs * (double) du * (double) du + (double) totalSumD2;
+            dsu.addStats(ru, delta2, deltaEprod, deltaD2degC);
+
             // Emit snapshot for the component containing u
-            SnapshotDTO snap = dsu.snapshotOf(ru);
-            sink.accept(snap);
+            int[] nodes = dsu.nodesOf(ru);
+            long sumDegIn2 = dsu.sumDegIn2(ru);
+            double Q = dsu.sumD2degC(ru) - 2.0 * dsu.sumEprod(ru);
+            sink.accept(new SnapshotDTO(nodes, nodes.length, sumDegIn2, Q));
 
-            // Clear tmp arrays more efficiently
-            Arrays.fill(tmpRoots, 0, unique, 0);
-            Arrays.fill(tmpCounts, 0, unique, 0);
+            // reset temp arrays entries we used
+            for (int i = 0; i < unique; i++) {
+                tmpRoots[i] = tmpCounts[i] = 0;
+                tmpSumD[i] = tmpSumD2[i] = 0L;
+            }
         }
-
-        long reconTime = System.currentTimeMillis() - startTime;
-        System.out.printf("# Reconstruction completed in %.2f seconds%n", reconTime / 1000.0);
     }
 
-    // Optimized Degeneracy Order
+    // ------------------------- Degeneracy Order -------------------------
 
-    static int[] degeneracyOrderOptimized(int[][] nbrs, int[] deg0) {
+    // Stable min-degree removal via lazy PQ (ties by node id). O(E log N), good for small graphs.
+    static int[] degeneracyOrderStable(int[][] nbrs, int[] deg0) {
         final int n = nbrs.length;
-        int maxDeg = Arrays.stream(deg0).parallel().max().orElse(0);
+        int[] deg = Arrays.copyOf(deg0, n);
+        boolean[] removed = new boolean[n];
+        PriorityQueue<long[]> pq = new PriorityQueue<>(Comparator.comparingLong(a -> (a[0] << 20) | a[1]));
+        for (int u = 0; u < n; u++) pq.add(new long[]{deg[u], u});
+        int[] order = new int[n];
+        int ptr = 0;
+        while (ptr < n) {
+            long[] top = pq.poll();
+            int du = (int) top[0];
+            int u = (int) top[1];
+            if (removed[u] || du != deg[u]) continue;
+            removed[u] = true;
+            order[ptr++] = u;
+            for (int v : nbrs[u]) if (!removed[v]) {
+                deg[v]--;
+                pq.add(new long[]{deg[v], v});
+            }
+        }
+        return order;
+    }
+
+    // Fast bucket-based degeneracy (no tie stability). O(E).
+    static int[] degeneracyOrderBucket(int[][] nbrs, int[] deg0) {
+        final int n = nbrs.length;
+        int maxDeg = 0;
+        for (int d : deg0) if (d > maxDeg) maxDeg = d;
 
         int[] deg = Arrays.copyOf(deg0, n);
-        int[] head = new int[maxDeg + 2]; // bucket heads
+        int[] head = new int[maxDeg + 2];
         int[] next = new int[n];
         int[] prev = new int[n];
-
         Arrays.fill(head, -1);
         Arrays.fill(next, -1);
         Arrays.fill(prev, -1);
-
-        // Initialize buckets
         for (int u = 0; u < n; u++) {
             int d = deg[u];
-            // push front into bucket d
             next[u] = head[d];
             if (head[d] >= 0) prev[head[d]] = u;
             head[d] = u;
         }
 
+        boolean[] removed = new boolean[n];
         int[] order = new int[n];
         int ptr = 0;
         int cur = 0;
         while (cur <= maxDeg && head[cur] < 0) cur++;
 
-        boolean[] removed = new boolean[n];
-
-        for (int iter = 0; iter < n; iter++) {
+        for (int it = 0; it < n; it++) {
             while (cur <= maxDeg && head[cur] < 0) cur++;
-            if (cur > maxDeg) cur = maxDeg; // safety
-
+            if (cur > maxDeg) cur = maxDeg;
             int u = head[cur];
-            // pop u from bucket cur
             head[cur] = next[u];
             if (head[cur] >= 0) prev[head[cur]] = -1;
             next[u] = prev[u] = -1;
-
             removed[u] = true;
             order[ptr++] = u;
 
-            // Optimized neighbor degree updates
-            int[] neighbors = nbrs[u];
-            for (int i = 0; i < neighbors.length; i++) {
-                int v = neighbors[i];
-                if (removed[v]) continue;
-
+            for (int v : nbrs[u]) if (!removed[v]) {
                 int dv = deg[v];
-                // remove v from bucket dv
                 int pv = prev[v], nv = next[v];
                 if (pv >= 0) next[pv] = nv; else head[dv] = nv;
                 if (nv >= 0) prev[nv] = pv;
-
-                // insert v into bucket dv-1
                 int nd = dv - 1;
                 deg[v] = nd;
                 next[v] = head[nd];
@@ -182,37 +209,43 @@ public class clique2_ablations_streaming {
         return order;
     }
 
-    // Optimized DSU & Stats
+    // --------------------------- DSU & Stats ---------------------------
 
     static final class DSU {
         final int n;
         final int[] parent;
         final int[] size;
-        final long[] sumDegIn;  // internal degree sum (2*|E(C)|)
-        final long[] boundary;  // edges with exactly one endpoint in C
-        final OptimizedIntList[] members;
+        final long[] sumDegIn2;    // 2 * |E_C|
+        final double[] sumEprod;   // Σ d_i d_j over internal edges (i<j)
+        final double[] sumD2degC;  // Σ deg_C(i) * d_i^2
+        final int[] degFull;
+        final IntList[] members;
 
-        DSU(int n) {
+        DSU(int n, int[] degFull) {
             this.n = n;
             this.parent = new int[n];
             this.size = new int[n];
-            this.sumDegIn = new long[n];
-            this.boundary = new long[n];
-            this.members = new OptimizedIntList[n];
+            this.sumDegIn2 = new long[n];
+            this.sumEprod = new double[n];
+            this.sumD2degC = new double[n];
+            this.degFull = degFull;
+            this.members = new IntList[n];
             for (int i = 0; i < n; i++) {
                 parent[i] = i;
                 size[i] = 0;
-                sumDegIn[i] = 0L;
-                boundary[i] = 0L;
-                members[i] = new OptimizedIntList();
+                sumDegIn2[i] = 0L;
+                sumEprod[i] = 0.0;
+                sumD2degC[i] = 0.0;
+                members[i] = new IntList();
             }
         }
 
-        void makeSingleton(int u, int degU) {
+        void makeSingleton(int u) {
             parent[u] = u;
             size[u] = 1;
-            sumDegIn[u] = 0L;
-            boundary[u] = degU;
+            sumDegIn2[u] = 0L;
+            sumEprod[u] = 0.0;
+            sumD2degC[u] = 0.0;
             members[u].clear();
             members[u].add(u);
         }
@@ -220,89 +253,65 @@ public class clique2_ablations_streaming {
         int find(int x) {
             int r = x;
             while (r != parent[r]) r = parent[r];
-            // Optimized path compression
-            while (x != r) {
-                int p = parent[x];
-                parent[x] = r;
-                x = p;
-            }
+            int y = x;
+            while (y != r) { int p = parent[y]; parent[y] = r; y = p; }
             return r;
         }
 
-        int unionWithEdgeCount(int ra, int rb, int t) {
+        int union(int ra, int rb) {
             ra = find(ra); rb = find(rb);
             if (ra == rb) return ra;
-
-            // union by size
-            if (size[ra] < size[rb]) {
-                int tmp = ra; ra = rb; rb = tmp;
-            }
-
-            // merge rb into ra
+            if (size[ra] < size[rb]) { int t = ra; ra = rb; rb = t; }
             parent[rb] = ra;
-
-            // stats
-            sumDegIn[ra] += sumDegIn[rb] + 2L * t;
-            boundary[ra] += boundary[rb] - 2L * t;
             size[ra] += size[rb];
-
-            // members: optimized append
+            sumDegIn2[ra] += sumDegIn2[rb];
+            sumEprod[ra]  += sumEprod[rb];
+            sumD2degC[ra] += sumD2degC[rb];
             members[ra].addAll(members[rb]);
             members[rb].clear();
-
             return ra;
         }
 
-        SnapshotDTO snapshotOf(int r) {
+        void addStats(int r, long delta2, double deltaEprod, double deltaD2degC) {
             r = find(r);
-            int sz = size[r];
-            int[] nodes = members[r].toArray();
-            return new SnapshotDTO(nodes, sz, sumDegIn[r], (double) boundary[r]);
+            sumDegIn2[r] += delta2;
+            sumEprod[r]  += deltaEprod;
+            sumD2degC[r] += deltaD2degC;
         }
+
+        long sumDegIn2(int r) { return sumDegIn2[find(r)]; }
+        double sumEprod(int r) { return sumEprod[find(r)]; }
+        double sumD2degC(int r) { return sumD2degC[find(r)]; }
+        int[] nodesOf(int r) { return members[find(r)].toArray(); }
     }
 
-    // Optimized dynamic int list with better memory management
-    static final class OptimizedIntList {
-        private int[] a;
-        private int sz;
-
-        OptimizedIntList() {
-            a = new int[8]; // Start with larger initial capacity
-            sz = 0;
-        }
-
+    // Simple dynamic int list (no boxing)
+    static final class IntList {
+        int[] a; int sz;
+        IntList() { a = new int[4]; sz = 0; }
         void clear() { sz = 0; }
-
-        void add(int x) {
-            if (sz == a.length) {
-                a = Arrays.copyOf(a, sz << 1); // Double capacity
-            }
-            a[sz++] = x;
-        }
-
-        void addAll(OptimizedIntList other) {
+        void add(int x) { if (sz == a.length) a = Arrays.copyOf(a, sz << 1); a[sz++] = x; }
+        void addAll(IntList other) {
             if (other.sz == 0) return;
             int need = sz + other.sz;
             if (need > a.length) {
-                int cap = Math.max(a.length << 1, need);
+                int cap = a.length;
+                while (cap < need) cap <<= 1;
                 a = Arrays.copyOf(a, cap);
             }
             System.arraycopy(other.a, 0, a, sz, other.sz);
             sz = need;
         }
-
-        int[] toArray() {
-            return Arrays.copyOf(a, sz);
-        }
+        int[] toArray() { return Arrays.copyOf(a, sz); }
     }
 
-    // Snapshot DTO
+    // ------------------------- Snapshot DTO -------------------------
 
     public static final class SnapshotDTO {
-        public final int[] nodes;   // 0-based ids in the original graph
-        public final int nC;        // |C|
-        public final long sumDegIn; // 2 * |E(C)|
-        public final double Q;      // here: boundary(C) (edges leaving C)
+        public final int[] nodes;    // 0-based node ids
+        public final int nC;         // |C|
+        public final long sumDegIn;  // 2 * |E(C)|
+        public final double Q;       // EXACT: d^T L_C d
 
         public SnapshotDTO(int[] nodes, int nC, long sumDegIn, double Q) {
             this.nodes = nodes;
